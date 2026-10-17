@@ -46,12 +46,19 @@ O `vercel.json` já define build e rotas. Para sincronização, adicione as vari
 
 ## Base de desafios
 
-`public/puzzles.json` é montado por `scripts/build-puzzles.mjs` a partir de:
+`public/puzzles.json` (~8.400 desafios) é montado por `scripts/build-puzzles.mjs`:
 
-- desafios gerados com o Stockfish (`scripts/generate-puzzles.mjs`): partidas do motor contra si mesmo;
-  quando um lance perde material/partida e a punição é **única**, vira um desafio de ataque; no modo `defesa`,
-  quando o adversário cria uma ameaça real e só um lance a neutraliza, vira um desafio de defesa;
-- a base oficial do Lichess (CC0, milhões de desafios com rating e temas reais), quando disponível:
-  `zstd -d lichess_db_puzzle.csv.zst && node scripts/build-puzzles.mjs lichess_db_puzzle.csv`.
+- **Base oficial do Lichess** (CC0, 6 milhões de desafios com rating medido por jogadores reais): amostra
+  estratificada por faixa de 100 pontos de rating e por tipo (ataque/defesa), só desafios bem avaliados.
+- **Desafios gerados com o Stockfish** (`scripts/generate-puzzles.mjs`) completam o que o Lichess quase não
+  tem: defesas abaixo de 700. O gerador joga partidas do motor contra si mesmo; no modo `ataque`, um erro
+  cuja punição é única vira desafio; no modo `defesa`, uma ameaça real que só um lance neutraliza.
 
-Créditos: Stockfish (GPLv3), base de aberturas do Lichess (CC0), peças do Lichess (ver `public/pieces/LICENSES.md`).
+Para refazer (pede ~300 MB de download, processados em streaming):
+
+```bash
+curl -sS https://database.lichess.org/lichess_db_puzzle.csv.zst | zstd -dc \
+  | node scripts/build-puzzles.mjs gerados-defesa.jsonl /dev/stdin
+```
+
+Créditos: Stockfish (GPLv3), aberturas e desafios do Lichess (CC0), peças do Lichess (ver `public/pieces/LICENSES.md`).

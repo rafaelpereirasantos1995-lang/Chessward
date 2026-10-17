@@ -55,7 +55,7 @@ describe('puzzles', () => {
   })
   it('shows only filters that fit the chosen kind', () => {
     expect(filtersFor('defense').some((f) => f.id === 'fork')).toBe(false)
-    expect(filtersFor('defense').some((f) => f.id === 'defendMate')).toBe(true)
-    expect(filtersFor('attack').some((f) => f.id === 'defendMate')).toBe(false)
+    expect(filtersFor('defense').some((f) => f.id === 'defendCheck')).toBe(true)
+    expect(filtersFor('attack').some((f) => f.id === 'defendCheck')).toBe(false)
   })
 })
