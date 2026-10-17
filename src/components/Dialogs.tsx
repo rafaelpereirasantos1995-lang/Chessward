@@ -139,6 +139,7 @@ export function AppearanceDialog({ onClose }: { onClose: () => void }) {
       <div className="divide-y divide-stone-700">
         <Toggle label="Mapa vermelho/verde" desc="Peças vulneráveis (vermelho) e alvos que você pode ganhar (verde)" value={settings.heatmap} onChange={(v) => set({ heatmap: v })} />
         <Toggle label="Pré-visualização ao segurar a peça" desc="Cada casa de destino mostra se o lance é seguro" value={settings.preview} onChange={(v) => set({ preview: v })} />
+        <Toggle label="Ameaças futuras (motor)" desc="Setas tracejadas com o plano da máquina para os próximos lances" value={settings.threats} onChange={(v) => set({ threats: v })} />
         <Toggle label="Treinador ao vivo" value={settings.coach} onChange={(v) => set({ coach: v })} />
         <Toggle label="Coordenadas" value={settings.showCoords} onChange={(v) => set({ showCoords: v })} />
         <Toggle label="Sons" value={settings.sound} onChange={(v) => set({ sound: v })} />

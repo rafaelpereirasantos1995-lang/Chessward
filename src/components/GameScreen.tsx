@@ -63,6 +63,15 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
       const m = uciToMove(game.evals[moveCount].bestUci!)
       arrows.push({ from: m.from, to: m.to, color: '#3b82f6' })
     }
+    // Mapa dinâmico: plano do adversário (1º e 2º lances dele) em setas vermelhas tracejadas.
+    const threat = game.evals[moveCount]?.threat
+    if (settings.threats && treino && myTurn && threat?.real) {
+      for (const k of [0, 2]) {
+        if (!threat.pv[k]) continue
+        const m = uciToMove(threat.pv[k])
+        arrows.push({ from: m.from, to: m.to, color: k === 0 ? '#dc2626' : '#f87171', dashed: true })
+      }
+    }
     const r = game.reviews[shownPly]
     const prevBest = game.evals[shownPly - 1]?.bestUci
     if (!live || ended) {
@@ -172,7 +181,7 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
               {settings.coach && <CoachFeed messages={game.coach.filter((m) => m.ply <= shownPly)} locked={game.mode === 'desafio' && playing} />}
               {treino && myTurn && settings.heatmap && (
                 <p className="text-xs text-stone-500">
-                  <span className="text-red-400">■</span> vulnerável · <span className="text-green-400">■</span> você ganha material · segure uma peça para ver cada destino
+                  <span className="text-red-400">■</span> vulnerável · <span className="text-green-400">■</span> você ganha material · <span className="text-red-400">⇢</span> plano da máquina · segure uma peça para ver cada destino
                 </p>
               )}
             </>

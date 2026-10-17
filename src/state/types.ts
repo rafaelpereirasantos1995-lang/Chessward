@@ -86,6 +86,8 @@ export interface Settings {
   heatmap: boolean
   preview: boolean
   coach: boolean
+  /** Ameaças futuras calculadas pelo motor (mapa dinâmico). */
+  threats: boolean
   tab: 'jogar' | 'testes' | 'treinos' | 'evolucao'
 }
 

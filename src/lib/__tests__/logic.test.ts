@@ -160,3 +160,12 @@ describe('opening family names', () => {
     expect(lookupOpening(g.fen())?.family).toBe('Abertura Grob')
   })
 })
+
+import { isRealThreat } from '../analysis'
+describe('threats', () => {
+  it('flags a threat only when passing would cost real winning chances', () => {
+    expect(isRealThreat({ cp: 0 }, { cp: 300 }, 'w')).toBe(true) // brancas ameaçam
+    expect(isRealThreat({ cp: 0 }, { cp: 40 }, 'w')).toBe(false)
+    expect(isRealThreat({ cp: 50 }, { mate: -2 }, 'b')).toBe(true) // pretas ameaçam mate
+  })
+})

@@ -11,6 +11,22 @@ export interface PosEval {
   second?: Score
   bestUci?: string
   depth: number
+  /** Plano do adversário se o jogador "passasse a vez" (só no Treino, na vez do jogador). */
+  threat?: Threat | null
+}
+
+export interface Threat {
+  /** Linha do adversário em UCI, a partir da posição com a vez passada. */
+  pv: string[]
+  /** Avaliação (brancas) se o jogador não fizesse nada. */
+  score: Score
+  /** A ameaça é relevante: o adversário ganharia bastante chance de vitória. */
+  real: boolean
+}
+
+/** Uma ameaça é real quando, se o jogador passasse a vez, o adversário ganharia >= 10 pontos de chance de vitória. */
+export function isRealThreat(current: Score, ifPass: Score, opponent: 'w' | 'b'): boolean {
+  return povWin(ifPass, opponent) - povWin(current, opponent) >= 10
 }
 
 export type MoveClass = 'book' | 'brilliant' | 'great' | 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder'

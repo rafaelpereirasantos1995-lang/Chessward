@@ -7,6 +7,8 @@ export interface Arrow {
   from: Square
   to: Square
   color: string
+  /** Seta tracejada (lances futuros/ameaças). */
+  dashed?: boolean
 }
 
 interface Props {
@@ -189,7 +191,7 @@ export function Board({ fen, orientation, movable, onMove, lastMove, heat, previ
             const len = Math.hypot(dx, dy)
             const shorten = 0.35 / len
             return (
-              <line key={i} x1={x1 + 0.5} y1={y1 + 0.5} x2={x2 + 0.5 - dx * shorten} y2={y2 + 0.5 - dy * shorten} stroke={a.color} strokeWidth="0.16" strokeLinecap="round" markerEnd={`url(#ah${i})`} opacity="0.85" />
+              <line key={i} x1={x1 + 0.5} y1={y1 + 0.5} x2={x2 + 0.5 - dx * shorten} y2={y2 + 0.5 - dy * shorten} stroke={a.color} strokeWidth="0.16" strokeLinecap="round" strokeDasharray={a.dashed ? '0.25 0.18' : undefined} markerEnd={`url(#ah${i})`} opacity={a.dashed ? 0.75 : 0.85} />
             )
           })}
         </svg>

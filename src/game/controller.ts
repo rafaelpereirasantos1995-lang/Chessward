@@ -1,5 +1,5 @@
 import { Chess, type Color, type Square } from 'chess.js'
-import { classify, type PosEval, type Score } from '../lib/analysis'
+import { classify, isRealThreat, type PosEval, type Score } from '../lib/analysis'
 import { chooseBotMove, levelByElo } from '../lib/bot'
 import { classificationMessage, openingMessages, positionMessages, type CoachMsg } from '../lib/coach'
 import { Engine } from '../lib/engine'
@@ -7,7 +7,7 @@ import { loadOpenings, lookupOpening, openingsLoaded } from '../lib/openings'
 import { newRating } from '../lib/rating'
 import { playMoveSound } from '../lib/sound'
 import { harvestGame } from '../lib/stats'
-import { judgeMove } from '../lib/tactics'
+import { judgeMove, withTurn } from '../lib/tactics'
 import { getState, subscribe, update } from '../state/store'
 import type { AppState, GameSession, Mode, Result } from '../state/types'
 
@@ -188,7 +188,61 @@ function tick() {
   if (!g) return
   runBot(g)
   runAnalysis(g)
+  runThreat(g)
   harvest(g)
+}
+
+let threatBusy: string | null = null
+
+/** Mapa dinâmico: na vez do jogador (Treino), o que o adversário faria se o jogador passasse a vez? */
+function runThreat(g: GameSession) {
+  const n = g.moves.length
+  const ev = g.evals[n]
+  if (g.status !== 'playing' || g.mode !== 'treino' || !getState().settings.threats || !ev || ev.threat !== undefined) return
+  const chess = replay(g)
+  if (chess.turn() !== g.playerColor || chess.isGameOver()) return
+  const tag = `${g.id}:${n}:${g.moves.join()}`
+  if (threatBusy === tag) return
+  threatBusy = tag
+  const opp = g.playerColor === 'w' ? 'b' : 'w'
+  const passed = chess.inCheck() ? null : withTurn(chess.fen(), opp)
+  const store = (threat: PosEval['threat'], msgs: CoachMsg[] = []) => {
+    if (threatBusy === tag) threatBusy = null
+    const cur = getState().current
+    if (!cur || cur.id !== g.id || cur.moves.join() !== g.moves.join() || !cur.evals[n]) return
+    setCurrent((c) => ({ ...c, evals: { ...c.evals, [n]: { ...c.evals[n], threat } }, coach: addCoach(c.coach, msgs) }))
+  }
+  if (!passed) return store(null)
+  void engines()
+    .analyst.analyze({ fen: passed.fen(), depth: 10, options: { UCI_LimitStrength: false } })
+    .then((res) => {
+      const line = res?.lines[0]
+      if (!line) return store(null)
+      const real = isRealThreat(ev.best, line.score, opp)
+      const msgs: CoachMsg[] = []
+      if (real) {
+        // Lances do adversário na linha (posições pares a partir da vez passada).
+        const c = new Chess(passed.fen())
+        const sans: string[] = []
+        for (let k = 0; k < Math.min(3, line.pv.length); k++) {
+          try {
+            const m = c.move(uciToMove(line.pv[k]))
+            if (k % 2 === 0) sans.push(m.san)
+          } catch {
+            break
+          }
+        }
+        msgs.push({
+          key: `threat:${n}`,
+          ply: n,
+          tone: 'bad',
+          icon: '🔮',
+          title: `Ameaça: a máquina planeja ${sans.join(' e depois ')}`,
+          text: 'Setas vermelhas tracejadas mostram o plano. Antes do seu lance, veja se ele impede essa ideia.',
+        })
+      }
+      store({ pv: line.pv.slice(0, 4), score: line.score, real }, msgs)
+    })
 }
 
 /** Quando a partida termina e todos os lances foram analisados, alimenta a aba Evolução. */
