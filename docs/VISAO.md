@@ -102,7 +102,7 @@ Duas camadas, que podem ser ligadas/desligadas:
 - ✅ Mapa dinâmico (ameaças do motor), relógio, às cegas, Xadrez 960 (sem roque).
 - ✅ Aba Treinos: finais essenciais, aberturas com repetição espaçada, adivinhe o lance (partidas 2300+ do Lichess).
 - ✅ Aba Evolução: gráfico de rating, aberturas, temas fracos, qualidade dos lances e revisão dos erros.
-- ⏭️ Próximo: deploy (Vercel + Supabase) e decisão sobre lojas. Antes planejado: camada dinâmica do mapa (ameaças em 2–3 lances via motor), finais e aberturas com repetição espaçada.
+- ⏭️ Próximo: deploy (Vercel + Supabase) e decisão sobre publicar nas lojas.
 
 ## 8. Perguntas em aberto
 
