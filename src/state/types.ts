@@ -3,6 +3,7 @@ import type { MoveClass, PosEval } from '../lib/analysis'
 import type { CoachMsg } from '../lib/coach'
 import type { KindChoice, Puzzle, PuzzleKind } from '../lib/puzzle'
 import type { MistakeCard } from '../lib/stats'
+import type { Clock } from '../lib/clock'
 
 export type Mode = 'treino' | 'desafio'
 export type Result = '1-0' | '0-1' | '1/2-1/2'
@@ -28,6 +29,11 @@ export interface GameSession {
   reviews: Record<number, MoveReview>
   coach: CoachMsg[]
   status: 'playing' | 'ended'
+  /** Xadrez 960 (sem roque) ou clássico. */
+  variant?: 'standard' | '960'
+  /** Às cegas: as peças ficam ocultas. */
+  blind?: boolean
+  clock?: Clock | null
   result?: Result
   endReason?: string
   ratingBefore?: number

@@ -9,6 +9,7 @@ import { levelByElo } from '../lib/bot'
 import { positionHeat, previewMoves } from '../lib/tactics'
 import { useAppState } from '../state/store'
 import { themeById } from '../themes'
+import { formatClock, remaining, type Clock } from '../lib/clock'
 
 type Dialog = 'new' | 'over' | null
 
@@ -54,7 +55,9 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
   const orientation = flipped ? (player === 'w' ? 'b' : 'w') : player
   const myTurn = playing && live && chess?.turn() === player
 
-  const heat = useMemo(() => (settings.heatmap && treino && myTurn ? positionHeat(fen, player) : undefined), [settings.heatmap, treino, myTurn, fen, player])
+  const blind = !!game?.blind && !ended
+  const [peek, setPeek] = useState(false)
+  const heat = useMemo(() => (settings.heatmap && treino && myTurn && !blind ? positionHeat(fen, player) : undefined), [settings.heatmap, treino, myTurn, blind, fen, player])
   const previewFor = useCallback((from: Square) => previewMoves(fen, from), [fen])
 
   const arrows: Arrow[] = []
@@ -65,7 +68,7 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
     }
     // Mapa dinâmico: plano do adversário (1º e 2º lances dele) em setas vermelhas tracejadas.
     const threat = game.evals[moveCount]?.threat
-    if (settings.threats && treino && myTurn && threat?.real) {
+    if (settings.threats && treino && myTurn && !blind && threat?.real) {
       for (const k of [0, 2]) {
         if (!threat.pv[k]) continue
         const m = uciToMove(threat.pv[k])
@@ -92,7 +95,7 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
     <>
       <main className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="mx-auto w-full max-w-[min(100%,calc(100vh-12rem))] lg:max-w-[calc(100vh-9rem)]">
-          <PlayerStrip label={level ? `🤖 ${level.name}` : '🤖 Máquina'} sub={level ? `≈ ${level.elo}` : ''} active={playing && chess?.turn() !== player} />
+          <PlayerStrip label={level ? `🤖 ${level.name}` : '🤖 Máquina'} sub={level ? `≈ ${level.elo}` : ''} active={playing && chess?.turn() !== player} clock={game?.clock} side={player === 'w' ? 'b' : 'w'} turn={chess?.turn() ?? 'w'} />
           <div className="my-1.5 flex gap-1.5">
             {helps && <EvalBar ev={game?.evals[shownPly]} orientation={orientation} terminal={terminal} />}
             <div className="min-w-0 flex-1">
@@ -103,7 +106,8 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
                 onMove={(from, to, promo) => playerMove(from, to, promo)}
                 lastMove={lastMove}
                 heat={heat}
-                previewFor={settings.preview && treino && myTurn ? previewFor : undefined}
+                previewFor={settings.preview && treino && myTurn && !blind ? previewFor : undefined}
+                hidePieces={blind && !peek}
                 arrows={arrows}
                 theme={themeById(settings.boardTheme)}
                 pieceSet={settings.pieceSet}
@@ -111,7 +115,7 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
               />
             </div>
           </div>
-          <PlayerStrip label="🙂 Você" sub={`${profile.rating}`} active={!!myTurn} />
+          <PlayerStrip label="🙂 Você" sub={`${profile.rating}`} active={!!myTurn} clock={game?.clock} side={player} turn={chess?.turn() ?? 'w'} />
 
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <button className={btn} disabled={!game || shownPly === 0} onClick={() => setViewPly(0)} aria-label="Início">
@@ -129,6 +133,17 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
             <button className={btn} onClick={() => setFlipped(!flipped)} title="Virar tabuleiro">
               🔄
             </button>
+            {blind && (
+              <button
+                className={btn}
+                onPointerDown={() => setPeek(true)}
+                onPointerUp={() => setPeek(false)}
+                onPointerLeave={() => setPeek(false)}
+                title="Segure para ver as peças"
+              >
+                👁️ Espiar
+              </button>
+            )}
             <div className="flex-1" />
             {playing && treino && (
               <>
@@ -216,14 +231,34 @@ export function GameScreen({ newRequest }: { newRequest: number }) {
   )
 }
 
-function PlayerStrip({ label, sub, active }: { label: string; sub: string; active: boolean }) {
+function PlayerStrip({ label, sub, active, clock, side, turn }: { label: string; sub: string; active: boolean; clock?: Clock | null; side: 'w' | 'b'; turn: 'w' | 'b' }) {
   return (
     <div className="flex items-center justify-between rounded-md px-1 text-sm">
       <span className="font-semibold">
         {label} <span className="font-normal text-stone-400">{sub}</span>
       </span>
-      {active && <span className="animate-pulse text-xs text-amber-400">● na vez</span>}
+      <span className="flex items-center gap-2">
+        {active && !clock && <span className="animate-pulse text-xs text-amber-400">● na vez</span>}
+        {clock && <ClockFace clock={clock} side={side} turn={turn} />}
+      </span>
     </div>
+  )
+}
+
+function ClockFace({ clock, side, turn }: { clock: Clock; side: 'w' | 'b'; turn: 'w' | 'b' }) {
+  const [, setTick] = useState(0)
+  const running = clock.runningSince !== null && side === turn
+  useEffect(() => {
+    if (!running) return
+    const id = setInterval(() => setTick((t) => t + 1), 100)
+    return () => clearInterval(id)
+  }, [running])
+  const ms = remaining(clock, side, turn)
+  const low = ms < 20_000
+  return (
+    <span className={`rounded-md px-2 py-0.5 font-mono text-base font-bold tabular-nums ${running ? (low ? 'bg-red-600 text-white' : 'bg-stone-100 text-stone-900') : 'bg-stone-800 text-stone-400'}`}>
+      {formatClock(ms)}
+    </span>
   )
 }
 

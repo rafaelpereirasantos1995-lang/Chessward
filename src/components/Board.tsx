@@ -24,6 +24,8 @@ interface Props {
   theme: BoardTheme
   pieceSet: string
   showCoords: boolean
+  /** Às cegas: não desenha as peças nem os destinos possíveis. */
+  hidePieces?: boolean
 }
 
 const FILES = 'abcdefgh'
@@ -42,7 +44,7 @@ function heatStyle(mark: HeatMark | undefined) {
   return { background: `rgba(${rgb},${alpha})`, boxShadow: `inset 0 0 0 3px rgba(${rgb},${Math.min(1, alpha + 0.3)})` }
 }
 
-export function Board({ fen, orientation, movable, onMove, lastMove, heat, previewFor, arrows, theme, pieceSet, showCoords }: Props) {
+export function Board({ fen, orientation, movable, onMove, lastMove, heat, previewFor, arrows, theme, pieceSet, showCoords, hidePieces }: Props) {
   const chess = useMemo(() => new Chess(fen), [fen])
   const boardRef = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState<Square | null>(null)
@@ -138,7 +140,7 @@ export function Board({ fen, orientation, movable, onMove, lastMove, heat, previ
           {checkSquare === sq && <div className="absolute inset-0" style={{ background: 'radial-gradient(circle, rgba(239,68,68,0.9) 0%, rgba(239,68,68,0.4) 45%, transparent 75%)' }} />}
           {isDest && pv && <div className="absolute inset-0" style={heatStyle(pv)} />}
           {drag && hover === sq && isDest && <div className="absolute inset-0" style={{ boxShadow: 'inset 0 0 0 4px rgba(255,255,255,0.75)' }} />}
-          {piece && (
+          {piece && !hidePieces && (
             <img
               src={pieceUrl(pieceSet, piece.color, piece.type)}
               alt=""
@@ -147,12 +149,12 @@ export function Board({ fen, orientation, movable, onMove, lastMove, heat, previ
               style={{ opacity: hidden ? 0.3 : 1, pointerEvents: 'none' }}
             />
           )}
-          {isDest && !piece && (
+          {isDest && !piece && !hidePieces && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="h-[30%] w-[30%] rounded-full" style={{ background: pv ? (pv.color === 'red' ? 'rgba(185,28,28,0.85)' : 'rgba(21,128,61,0.85)') : 'rgba(0,0,0,0.25)' }} />
             </div>
           )}
-          {isDest && piece && <div className="absolute inset-[4%] rounded-full" style={{ boxShadow: `inset 0 0 0 5px ${pv ? (pv.color === 'red' ? 'rgba(185,28,28,0.85)' : 'rgba(21,128,61,0.85)') : 'rgba(0,0,0,0.3)'}` }} />}
+          {isDest && piece && !hidePieces && <div className="absolute inset-[4%] rounded-full" style={{ boxShadow: `inset 0 0 0 5px ${pv ? (pv.color === 'red' ? 'rgba(185,28,28,0.85)' : 'rgba(21,128,61,0.85)') : 'rgba(0,0,0,0.3)'}` }} />}
           {showCoords && col === 0 && <span className="pointer-events-none absolute left-0.5 top-0 text-[10px] font-semibold sm:text-xs" style={{ color: light ? theme.dark : theme.light }}>{sq[1]}</span>}
           {showCoords && row === 7 && <span className="pointer-events-none absolute bottom-0 right-1 text-[10px] font-semibold sm:text-xs" style={{ color: light ? theme.dark : theme.light }}>{sq[0]}</span>}
         </div>,
@@ -203,7 +205,7 @@ export function Board({ fen, orientation, movable, onMove, lastMove, heat, previ
         </div>
       )}
 
-      {drag && selected && chess.get(selected) && (
+      {drag && selected && chess.get(selected) && !hidePieces && (
         <img
           src={pieceUrl(pieceSet, chess.get(selected)!.color, chess.get(selected)!.type)}
           alt=""

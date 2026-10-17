@@ -6,6 +6,8 @@ import { Engine } from '../lib/engine'
 import { loadOpenings, lookupOpening, openingsLoaded } from '../lib/openings'
 import { newRating } from '../lib/rating'
 import { playMoveSound } from '../lib/sound'
+import { chess960Fen } from '../lib/chess960'
+import { afterMove, newClock, pause, remaining, resume } from '../lib/clock'
 import { harvestGame } from '../lib/stats'
 import { judgeMove, withTurn } from '../lib/tactics'
 import { getState, subscribe, update } from '../state/store'
@@ -51,7 +53,16 @@ function addCoach(list: CoachMsg[], msgs: CoachMsg[]): CoachMsg[] {
 
 // ---------- Ações ----------
 
-export function newGame(opts: { mode: Mode; botElo: number; playerColor: Color | 'random' }) {
+export interface GameOptions {
+  mode: Mode
+  botElo: number
+  playerColor: Color | 'random'
+  variant?: 'standard' | '960'
+  blind?: boolean
+  time?: { minutes: number; increment: number } | null
+}
+
+export function newGame(opts: GameOptions) {
   const s = getState()
   if (s.current?.status === 'playing' && s.current.mode === 'desafio' && s.current.moves.length >= 2) resign('Abandonou a partida')
   bot?.cancelAll()
@@ -64,7 +75,10 @@ export function newGame(opts: { mode: Mode; botElo: number; playerColor: Color |
     mode: opts.mode,
     botElo: opts.botElo,
     playerColor,
-    startFen: new Chess().fen(),
+    startFen: opts.variant === '960' ? chess960Fen() : new Chess().fen(),
+    variant: opts.variant ?? 'standard',
+    blind: opts.blind ?? false,
+    clock: opts.time ? newClock(opts.time.minutes, opts.time.increment) : null,
     moves: [],
     evals: {},
     reviews: {},
@@ -106,11 +120,11 @@ function applyMove(g: GameSession, chess: Chess, uci: string): boolean {
   const msgs: CoachMsg[] = []
   const op = lookupOpening(chess.fen())
   if (op && ply <= 30) msgs.push(...openingMessages(op, ply))
-  msgs.push(...positionMessages(chess, g.playerColor, ply, { tactics: g.mode === 'treino' }))
+  msgs.push(...positionMessages(chess, g.playerColor, ply, { tactics: g.mode === 'treino' && !g.blind, standard: g.variant !== '960' }))
 
   if (getState().settings.sound) playMoveSound(chess.isGameOver() ? 'end' : chess.inCheck() ? 'check' : move.captured ? 'capture' : 'move')
 
-  setCurrent((cur) => ({ ...cur, moves: [...cur.moves, move.lan], coach: addCoach(cur.coach, msgs) }))
+  setCurrent((cur) => ({ ...cur, moves: [...cur.moves, move.lan], coach: addCoach(cur.coach, msgs), clock: cur.clock ? afterMove(cur.clock, move.color) : cur.clock }))
 
   if (chess.isGameOver()) {
     let result: Result = '1/2-1/2'
@@ -151,7 +165,8 @@ function endGame(result: Result, reason: string) {
         losses: profile.losses + (score === 0 ? 1 : 0),
       }
     }
-    const ended: GameSession = { ...g, status: 'ended', result, endReason: reason, ratingBefore: s.profile.rating, ratingAfter }
+    const clock = g.clock ? pause(g.clock, replay(g).turn()) : g.clock
+    const ended: GameSession = { ...g, clock, status: 'ended', result, endReason: reason, ratingBefore: s.profile.rating, ratingAfter }
     const record = { id: g.id, date: Date.now(), mode: g.mode, botElo: g.botElo, playerColor: g.playerColor, result, endReason: reason, ratingAfter, moves: g.moves, startFen: g.startFen }
     const stats = ratingAfter !== undefined ? { ...s.stats, ratingHistory: [...s.stats.ratingHistory, { t: Date.now(), r: ratingAfter }].slice(-300) } : s.stats
     return { ...s, profile, stats, current: ended, history: [record, ...s.history].slice(0, 50) }
@@ -198,7 +213,7 @@ let threatBusy: string | null = null
 function runThreat(g: GameSession) {
   const n = g.moves.length
   const ev = g.evals[n]
-  if (g.status !== 'playing' || g.mode !== 'treino' || !getState().settings.threats || !ev || ev.threat !== undefined) return
+  if (g.status !== 'playing' || g.mode !== 'treino' || g.blind || !getState().settings.threats || !ev || ev.threat !== undefined) return
   const chess = replay(g)
   if (chess.turn() !== g.playerColor || chess.isGameOver()) return
   const tag = `${g.id}:${n}:${g.moves.join()}`
@@ -298,7 +313,8 @@ function runBot(g: GameSession) {
   const ply = g.moves.length
   const prefix = g.moves.join()
   const started = Date.now()
-  void chooseBotMove(engines().bot, chess.fen(), levelByElo(g.botElo)).then((uci) => {
+  const timeLeft = g.clock ? remaining(g.clock, chess.turn(), chess.turn()) : undefined
+  void chooseBotMove(engines().bot, chess.fen(), levelByElo(g.botElo), Math.random, timeLeft).then((uci) => {
     const wait = Math.max(0, 600 - (Date.now() - started))
     setTimeout(() => {
       if (botBusy === tag) botBusy = null
@@ -374,10 +390,37 @@ function storeEval(g: GameSession, i: number, ev: PosEval) {
   setCurrent((cur) => ({ ...cur, ...extra, evals: { ...cur.evals, [i]: ev } }))
 }
 
+/** Queda de bandeira: quem está na vez com o relógio zerado perde (empata se o outro só tem o rei). */
+function checkFlag() {
+  const g = getState().current
+  if (!g || g.status !== 'playing' || !g.clock || g.clock.runningSince === null) return
+  const chess = replay(g)
+  const turn = chess.turn()
+  if (remaining(g.clock, turn, turn) > 0) return
+  const other: Color = turn === 'w' ? 'b' : 'w'
+  const loneKing = chess.board().flat().filter((p) => p && p.color === other).length === 1
+  setCurrent((c) => ({ ...c, clock: c.clock ? { ...c.clock, [turn]: 0, runningSince: null } : c.clock }))
+  endGame(loneKing ? '1/2-1/2' : turn === 'w' ? '0-1' : '1-0', loneKing ? 'Tempo esgotado (sem material para mate)' : 'Tempo esgotado')
+}
+
+/** O relógio pausa quando o app sai da tela (troca de aba, de aparelho ou fecha) e volta ao retornar. */
+function setClockRunning(running: boolean) {
+  const g = getState().current
+  if (!g || g.status !== 'playing' || !g.clock) return
+  const turn = replay(g).turn()
+  const next = running ? resume(g.clock) : pause(g.clock, turn)
+  if (next !== g.clock) setCurrent((c) => ({ ...c, clock: next }))
+}
+
 let started = false
 export function startController() {
   if (started) return
   started = true
+  // Partida retomada (outro dia ou outro aparelho): o tempo fora do app não conta.
+  const g = getState().current
+  if (g?.status === 'playing' && g.clock?.runningSince) setCurrent((c) => ({ ...c, clock: c.clock ? { ...c.clock, runningSince: Date.now() } : c.clock }))
+  setInterval(checkFlag, 250)
+  document.addEventListener('visibilitychange', () => setClockRunning(document.visibilityState === 'visible'))
   void loadOpenings().then(tick)
   subscribe(() => queueMicrotask(tick))
   tick()

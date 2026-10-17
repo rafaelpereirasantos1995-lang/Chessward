@@ -2,6 +2,8 @@ import type { Color } from 'chess.js'
 import { useEffect, useState, type ReactNode } from 'react'
 import { CLASS_INFO, moveAccuracy, type MoveClass } from '../lib/analysis'
 import { BOT_LEVELS, suggestedLevel } from '../lib/bot'
+import { TIME_CONTROLS } from '../lib/clock'
+import type { GameOptions } from '../game/controller'
 import { update, useAppState } from '../state/store'
 import { cloudAvailable, signIn, signOut, signUp, syncNow, useSync } from '../state/sync'
 import type { GameSession, Mode, Settings } from '../state/types'
@@ -30,13 +32,16 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
 
 const choice = (active: boolean) => `rounded-lg border p-3 text-left transition ${active ? 'border-amber-400 bg-amber-400/10' : 'border-stone-600 hover:border-stone-400'}`
 
-export function NewGameDialog({ onClose, onStart }: { onClose: () => void; onStart: (o: { mode: Mode; botElo: number; playerColor: Color | 'random' }) => void }) {
+export function NewGameDialog({ onClose, onStart }: { onClose: () => void; onStart: (o: GameOptions) => void }) {
   const rating = useAppState((s) => s.profile.rating)
   const current = useAppState((s) => s.current)
   const suggested = suggestedLevel(rating)
   const [mode, setMode] = useState<Mode>('treino')
   const [color, setColor] = useState<Color | 'random'>('w')
   const [elo, setElo] = useState(suggested.elo)
+  const [time, setTime] = useState<string>('none')
+  const [variant, setVariant] = useState<'standard' | '960'>('standard')
+  const [blind, setBlind] = useState(false)
   const abandoning = current?.status === 'playing' && current.mode === 'desafio' && current.moves.length >= 2
 
   return (
@@ -82,9 +87,33 @@ export function NewGameDialog({ onClose, onStart }: { onClose: () => void; onSta
         ))}
       </div>
 
+      <h3 className="mb-2 mt-4 text-sm font-semibold text-stone-300">Relógio</h3>
+      <div className="grid grid-cols-5 gap-1.5">
+        {[{ id: 'none', label: 'Sem' }, ...TIME_CONTROLS].map((t) => (
+          <button key={t.id} className={choice(time === t.id) + ' !p-2 text-center text-xs font-semibold'} onClick={() => setTime(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <h3 className="mb-2 mt-4 text-sm font-semibold text-stone-300">Variações</h3>
+      <div className="grid grid-cols-2 gap-2">
+        <button className={choice(variant === '960')} onClick={() => setVariant(variant === '960' ? 'standard' : '960')}>
+          <div className="text-sm font-semibold">🎲 Xadrez 960</div>
+          <div className="text-xs text-stone-400">Peças da última fileira embaralhadas: sem teoria decorada (sem roque).</div>
+        </button>
+        <button className={choice(blind)} onClick={() => setBlind(!blind)}>
+          <div className="text-sm font-semibold">🙈 Às cegas</div>
+          <div className="text-xs text-stone-400">As peças ficam ocultas: jogue de memória. Dá para espiar.</div>
+        </button>
+      </div>
+
       {abandoning && <p className="mt-3 rounded bg-red-950/50 p-2 text-xs text-red-300">Você tem uma partida de Desafio em andamento. Começar outra conta como derrota.</p>}
 
-      <button className="mt-4 w-full rounded-xl bg-amber-500 py-3 font-bold text-stone-900 hover:bg-amber-400" onClick={() => onStart({ mode, botElo: elo, playerColor: color })}>
+      <button className="mt-4 w-full rounded-xl bg-amber-500 py-3 font-bold text-stone-900 hover:bg-amber-400" onClick={() => {
+          const tc = TIME_CONTROLS.find((t) => t.id === time)
+          onStart({ mode, botElo: elo, playerColor: color, variant, blind, time: tc ? { minutes: tc.minutes, increment: tc.increment } : null })
+        }}>
         Começar
       </button>
     </Modal>

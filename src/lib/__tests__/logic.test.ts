@@ -169,3 +169,40 @@ describe('threats', () => {
     expect(isRealThreat({ cp: 50 }, { mate: -2 }, 'b')).toBe(true) // pretas ameaçam mate
   })
 })
+
+import { afterMove, formatClock, newClock, pause, remaining, resume } from '../clock'
+import { chess960Fen } from '../chess960'
+
+describe('clock', () => {
+  it('runs only for the side to move, adds increment and pauses', () => {
+    let c = newClock(5, 3, 0)
+    expect(remaining(c, 'w', 'w', 10_000)).toBe(290_000)
+    expect(remaining(c, 'b', 'w', 10_000)).toBe(300_000)
+    c = afterMove(c, 'w', 10_000)
+    expect(c.w).toBe(293_000)
+    c = pause(c, 'b', 15_000)
+    expect(c.b).toBe(295_000)
+    expect(remaining(c, 'b', 'b', 99_000)).toBe(295_000) // pausado não corre
+    c = resume(c, 100_000)
+    expect(remaining(c, 'b', 'b', 101_000)).toBe(294_000)
+  })
+  it('formats', () => {
+    expect(formatClock(65_000)).toBe('1:05')
+    expect(formatClock(9_450)).toBe('9.4')
+    expect(formatClock(-5)).toBe('0.0')
+  })
+})
+
+describe('chess960', () => {
+  it('creates legal starts with bishops on opposite colors and king between rooks', () => {
+    for (let i = 0; i < 50; i++) {
+      const fen = chess960Fen()
+      const back = fen.split('/')[0]
+      const bs = [...back].map((p, j) => (p === 'b' ? j % 2 : -1)).filter((x) => x >= 0)
+      expect(bs.sort()).toEqual([0, 1])
+      expect(back.indexOf('r')).toBeLessThan(back.indexOf('k'))
+      expect(back.lastIndexOf('r')).toBeGreaterThan(back.indexOf('k'))
+      expect(() => new Chess(fen)).not.toThrow()
+    }
+  })
+})

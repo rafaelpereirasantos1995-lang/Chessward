@@ -37,11 +37,13 @@ export function suggestedLevel(rating: number): BotLevel {
   return BOT_LEVELS.reduce((best, l) => (Math.abs(l.elo - rating) < Math.abs(best.elo - rating) ? l : best))
 }
 
-export async function chooseBotMove(engine: Engine, fen: string, level: BotLevel, rnd = Math.random): Promise<string | null> {
+/** `timeLeft`: tempo restante da máquina no relógio (ms), para ela não perder por tempo. */
+export async function chooseBotMove(engine: Engine, fen: string, level: BotLevel, rnd = Math.random, timeLeft?: number): Promise<string | null> {
   if (level.depth === undefined) {
+    const normal = 400 + Math.min(1200, (level.elo - 1300) / 1.5)
     const res = await engine.analyze({
       fen,
-      movetime: 400 + Math.min(1200, (level.elo - 1300) / 1.5),
+      movetime: timeLeft === undefined ? normal : Math.max(50, Math.min(normal, timeLeft / 40)),
       options: { UCI_LimitStrength: true, UCI_Elo: level.elo },
     })
     return res?.bestmove ?? null
