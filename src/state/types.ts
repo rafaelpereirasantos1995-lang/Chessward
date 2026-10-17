@@ -126,6 +126,17 @@ export interface Stats {
   harvested: string[]
 }
 
+/** Treinos em andamento e progresso (aba Treinos). */
+export interface TrainingState {
+  endgame: { id: string; moves: string[]; status: 'playing' | 'done'; success?: boolean; message?: string } | null
+  endgamesDone: Record<string, boolean>
+  /** Cartões de repetição espaçada das linhas de abertura (chave: família|índice|cor). */
+  openingCards: Record<string, { box: number; due: number }>
+  opening: { family: string; color: 'w' | 'b'; queue: number[]; index: number; step: number; mistakes: number; lastWrong: string | null } | null
+  guess: { game: number; side: 'w' | 'b'; ply: number; score: number; max: number; feedback: { text: string; points: number; master: string; guess: string } | null; done: boolean } | null
+  guessBest: number | null
+}
+
 export interface AppState {
   version: 1
   /** Momento da última alteração local (ms); usado para decidir qual cópia vence na sincronização. */
@@ -138,4 +149,5 @@ export interface AppState {
   stats: Stats
   /** Erros graves das suas partidas, revisados com repetição espaçada. */
   mistakes: MistakeCard[]
+  training: TrainingState
 }

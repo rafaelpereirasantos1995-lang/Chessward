@@ -15,13 +15,14 @@ export function defaultState(): AppState {
     puzzles: { rating: START_RATING, peak: START_RATING, played: 0, solved: 0, streak: 0, bestStreak: 0, seen: [], filter: 'random', kind: 'mix', byKind: { attack: { played: 0, solved: 0 }, defense: { played: 0, solved: 0 } }, current: null },
     stats: { ratingHistory: [], puzzleHistory: [], byTheme: {}, moveClasses: {}, openings: {}, harvested: [] },
     mistakes: [],
+    training: { endgame: null, endgamesDone: {}, openingCards: {}, opening: null, guess: null, guessBest: null },
   }
 }
 
 /** Completa campos que não existiam em versões anteriores do estado salvo. */
 function withDefaults(s: AppState): AppState {
   const d = defaultState()
-  return { ...d, ...s, settings: { ...d.settings, ...s.settings }, profile: { ...d.profile, ...s.profile }, puzzles: { ...d.puzzles, ...s.puzzles }, stats: { ...d.stats, ...s.stats } }
+  return { ...d, ...s, settings: { ...d.settings, ...s.settings }, profile: { ...d.profile, ...s.profile }, puzzles: { ...d.puzzles, ...s.puzzles }, stats: { ...d.stats, ...s.stats }, training: { ...d.training, ...s.training } }
 }
 
 function load(): AppState {

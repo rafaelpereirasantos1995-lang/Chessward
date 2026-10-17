@@ -21,7 +21,7 @@ const ANALYSIS_DEPTH = 12
 
 let bot: Engine | null = null
 let analyst: Engine | null = null
-const engines = () => {
+export const engines = () => {
   bot ??= new Engine()
   analyst ??= new Engine()
   return { bot, analyst }

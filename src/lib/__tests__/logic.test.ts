@@ -206,3 +206,53 @@ describe('chess960', () => {
     }
   })
 })
+
+import { ENDGAMES, endgameVerdict } from '../endgames'
+describe('endgames', () => {
+  const byId = (id: string) => ENDGAMES.find((e) => e.id === id)!
+  it('all positions are legal and the side to move is consistent', () => {
+    for (const e of ENDGAMES) expect(() => new Chess(e.fen)).not.toThrow()
+  })
+  it('mate is success, stalemate is failure for win goals', () => {
+    expect(endgameVerdict(byId('krrk'), new Chess('R3k3/7R/8/8/8/8/8/4K3 b - - 0 1'), 3)).toMatchObject({ done: true, success: true })
+    expect(endgameVerdict(byId('kqk'), new Chess('k7/2Q5/1K6/8/8/8/8/8 b - - 0 1'), 5)).toMatchObject({ done: true, success: false })
+  })
+  it('draw goal: surviving the limit or a lost eval', () => {
+    const e = byId('kpk-defense')
+    expect(endgameVerdict(e, new Chess(e.fen), 25, { cp: 0 })).toMatchObject({ done: true, success: true })
+    expect(endgameVerdict(e, new Chess(e.fen), 3, { cp: 900 })).toMatchObject({ done: true, success: false })
+    expect(endgameVerdict(e, new Chess(e.fen), 3, { cp: 20 })).toEqual({ done: false })
+  })
+  it('promotion and bare king', () => {
+    expect(endgameVerdict(byId('kpk-front'), (() => { const c = new Chess('4k3/4P3/4K3/8/8/8/8/8 w - - 0 1'); c.move('Kd6'); c.move('Kf7'); c.move('e8=Q+'); return c })(), 4)).toMatchObject({ done: true })
+    expect(endgameVerdict(byId('r-vs-p'), new Chess('8/8/8/8/8/2k5/8/1K4R1 b - - 0 1'), 4)).toMatchObject({ done: true, success: true })
+  })
+})
+
+import { translateName } from '../openings'
+import { cardKey, openingQueue, OPENING_LINES, GAMES, gameMoves } from '../../game/trainers'
+
+describe('trainers data', () => {
+  it('opening lines and master games replay legally', () => {
+    for (const f of OPENING_LINES) for (const [, uci] of f.lines) {
+      const c = new Chess()
+      for (const u of uci.split(' ')) c.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] })
+    }
+    for (let i = 0; i < GAMES.length; i++) {
+      const c = new Chess()
+      for (const u of gameMoves(i)) c.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] })
+      expect(GAMES[i][2]).toBeGreaterThanOrEqual(2300)
+    }
+  })
+  it('opening queue: due first, then up to 4 new', () => {
+    const fam = OPENING_LINES[0].family
+    const t = { endgame: null, endgamesDone: {}, opening: null, guess: null, guessBest: null, openingCards: { [cardKey(fam, 5, 'w')]: { box: 1, due: 0 }, [cardKey(fam, 0, 'w')]: { box: 2, due: 9e15 } } }
+    const q = openingQueue(t, fam, 'w', 1000)
+    expect(q[0]).toBe(5)
+    expect(q).not.toContain(0)
+    expect(q.length).toBe(5)
+  })
+  it('translates full opening names', () => {
+    expect(translateName("Queen's Gambit Declined: Exchange Variation")).toBe('Gambito da Dama Recusado — Variante das Trocas')
+  })
+})

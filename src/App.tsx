@@ -3,6 +3,7 @@ import { AccountDialog, AppearanceDialog } from './components/Dialogs'
 import { btn, GameScreen } from './components/GameScreen'
 import { EvolutionScreen } from './components/EvolutionScreen'
 import { PuzzleScreen } from './components/PuzzleScreen'
+import { TrainingScreen } from './components/TrainingScreen'
 import type { Settings } from './state/types'
 import { update, useAppState } from './state/store'
 import { cloudAvailable, useSync } from './state/sync'
@@ -23,6 +24,7 @@ export default function App() {
   const TABS: [Settings['tab'], string][] = [
     ['jogar', '♟ Jogar'],
     ['testes', '🧩 Testes'],
+    ['treinos', '🎯 Treinos'],
     ['evolucao', '📈 Evolução'],
   ]
 
@@ -66,6 +68,7 @@ export default function App() {
 
       {tab === 'jogar' && <GameScreen newRequest={newRequest} />}
       {tab === 'testes' && <PuzzleScreen />}
+      {tab === 'treinos' && <TrainingScreen />}
       {tab === 'evolucao' && <EvolutionScreen />}
 
       {dialog === 'look' && <AppearanceDialog onClose={() => setDialog(null)} />}

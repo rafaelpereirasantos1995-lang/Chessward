@@ -137,6 +137,13 @@ function translateFamily(en: string): string {
   return translateVariation(en)
 }
 
+/** Nome completo ("Família: Variante") traduzido. */
+export function translateName(name: string): string {
+  const [fam, variation] = name.split(/:(.*)/s)
+  const family = translateFamily(fam.trim())
+  return variation ? `${family} — ${translateVariation(variation.trim())}` : family
+}
+
 const SUFFIXES: Record<string, string> = { Variation: 'Variante', Attack: 'Ataque', Gambit: 'Gambito', Defense: 'Defesa', System: 'Sistema', Line: 'Linha', Opening: 'Abertura', Game: 'Partida' }
 
 function translateVariation(en: string): string {
