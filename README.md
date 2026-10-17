@@ -8,6 +8,9 @@ App pessoal de treino de xadrez para web e celular (PWA instalável, funciona of
 - **Modo Desafio**: sem ajuda, vale rating. O rating começa em 400 e sobe conforme você vence.
 - **Treinador ao vivo** (regras): classificação de cada lance (brilhante, ótimo, melhor… capivarada),
   aberturas e gambitos em português, princípios, estrutura de peões, peça mais ativa e alertas táticos.
+- **Testes (desafios táticos)**: posições sorteadas perto do seu nível, sem nenhuma ajuda. Cada lance certo
+  faz o adversário responder e o desafio continua até você resolver ou errar (estilo Lichess). Rating próprio
+  (começa em 400), sequência de acertos e filtro por tipo (mate em 1, garfo, final…).
 - **Resumo da partida**: precisão sua e da máquina, contagem por tipo de lance e revisão lance a lance com o melhor lance indicado.
 - **Aparência**: 8 tabuleiros e 8 conjuntos de peças.
 - **Progresso salvo sempre**: a partida em andamento continua de onde parou; com Supabase configurado,
@@ -37,6 +40,16 @@ O `vercel.json` já define build e rotas. Para sincronização, adicione as vari
 | `src/game/controller.ts` | Orquestra partida, máquina, análise e comentários |
 | `src/state` | Estado persistente e sincronização (Supabase) |
 | `src/components` | Tabuleiro, painéis e diálogos |
-| `scripts` | Cópia do motor e geração da base de aberturas |
+| `src/game/puzzles.ts` | Fluxo dos testes (lance certo/errado, resposta do adversário, rating) |
+| `scripts` | Cópia do motor, base de aberturas e base de desafios |
+
+## Base de desafios
+
+`public/puzzles.json` é montado por `scripts/build-puzzles.mjs` a partir de:
+
+- desafios gerados com o Stockfish (`scripts/generate-puzzles.mjs`): partidas do motor contra si mesmo;
+  quando um lance perde material/partida e a punição é **única**, vira um desafio;
+- a base oficial do Lichess (CC0, milhões de desafios com rating e temas reais), quando disponível:
+  `zstd -d lichess_db_puzzle.csv.zst && node scripts/build-puzzles.mjs lichess_db_puzzle.csv`.
 
 Créditos: Stockfish (GPLv3), base de aberturas do Lichess (CC0), peças do Lichess (ver `public/pieces/LICENSES.md`).

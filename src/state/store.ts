@@ -9,19 +9,24 @@ export function defaultState(): AppState {
     version: 1,
     updatedAt: 0,
     profile: { rating: START_RATING, peak: START_RATING, ratedGames: 0, wins: 0, draws: 0, losses: 0 },
-    settings: { boardTheme: 'madeira', pieceSet: 'cburnett', showCoords: true, sound: true, heatmap: true, preview: true, coach: true },
+    settings: { boardTheme: 'madeira', pieceSet: 'cburnett', showCoords: true, sound: true, heatmap: true, preview: true, coach: true, tab: 'jogar' },
     current: null,
     history: [],
+    puzzles: { rating: START_RATING, peak: START_RATING, played: 0, solved: 0, streak: 0, bestStreak: 0, seen: [], filter: 'random', current: null },
   }
+}
+
+/** Completa campos que não existiam em versões anteriores do estado salvo. */
+function withDefaults(s: AppState): AppState {
+  const d = defaultState()
+  return { ...d, ...s, settings: { ...d.settings, ...s.settings }, profile: { ...d.profile, ...s.profile }, puzzles: { ...d.puzzles, ...s.puzzles } }
 }
 
 function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as AppState
-      const d = defaultState()
-      return { ...d, ...parsed, settings: { ...d.settings, ...parsed.settings }, profile: { ...d.profile, ...parsed.profile } }
+      return withDefaults(JSON.parse(raw) as AppState)
     }
   } catch {
     // Armazenamento indisponível (modo privado etc.): segue com o estado padrão.
@@ -56,8 +61,7 @@ export function update(fn: (s: AppState) => AppState) {
 
 /** Substitui o estado por uma cópia vinda da nuvem (não dispara novo envio). */
 export function replaceFromRemote(next: AppState) {
-  const d = defaultState()
-  state = { ...d, ...next, settings: { ...d.settings, ...next.settings }, profile: { ...d.profile, ...next.profile } }
+  state = withDefaults(next)
   persist()
   for (const l of listeners) l()
 }

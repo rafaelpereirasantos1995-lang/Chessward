@@ -97,7 +97,8 @@ Duas camadas, que podem ser ligadas/desligadas:
 - ✅ Fase 1 completa (tabuleiro, máquina com 14 níveis, avaliação, classificação, temas, PWA, rating, sincronização).
 - ✅ Parte da Fase 2: mapa estático vermelho/verde e pré-visualização ao segurar a peça.
 - ✅ Parte da Fase 3: aberturas/gambitos, peça mais ativa, princípios, estrutura de peões, resumo pós-partida.
-- ⏭️ Próximo: camada dinâmica do mapa (ameaças em 2–3 lances via motor), puzzles e posições aleatórias.
+- ✅ Testes (desafios táticos aleatórios estilo Lichess): sem ajuda, continua a cada lance certo, rating próprio, sequência e filtros por tema.
+- ⏭️ Próximo: trocar/ampliar a base de desafios pela do Lichess, camada dinâmica do mapa (ameaças em 2–3 lances via motor), finais e aberturas com repetição espaçada.
 
 ## 8. Perguntas em aberto
 

@@ -1,6 +1,7 @@
 import type { Color } from 'chess.js'
 import type { MoveClass, PosEval } from '../lib/analysis'
 import type { CoachMsg } from '../lib/coach'
+import type { Puzzle } from '../lib/puzzle'
 
 export type Mode = 'treino' | 'desafio'
 export type Result = '1-0' | '0-1' | '1/2-1/2'
@@ -46,6 +47,34 @@ export interface GameRecord {
   startFen: string
 }
 
+/** Desafio (teste) em andamento — salvo a cada lance para retomar em qualquer aparelho. */
+export interface PuzzleSession {
+  puzzle: Puzzle
+  /** Quantos lances da sequência já foram jogados. */
+  step: number
+  /** Errou pelo menos uma vez (o rating já foi descontado). */
+  failed: boolean
+  status: 'playing' | 'done'
+  /** Último lance do jogador, para o retorno visual (certo/errado). */
+  feedback: { uci: string; ok: boolean } | null
+  solutionShown: boolean
+  ratingBefore: number
+  ratingAfter?: number
+}
+
+export interface PuzzleStats {
+  rating: number
+  peak: number
+  played: number
+  solved: number
+  streak: number
+  bestStreak: number
+  /** Últimos desafios vistos, para não repetir. */
+  seen: string[]
+  filter: string
+  current: PuzzleSession | null
+}
+
 export interface Settings {
   boardTheme: string
   pieceSet: string
@@ -54,6 +83,7 @@ export interface Settings {
   heatmap: boolean
   preview: boolean
   coach: boolean
+  tab: 'jogar' | 'testes'
 }
 
 export interface Profile {
@@ -73,4 +103,5 @@ export interface AppState {
   settings: Settings
   current: GameSession | null
   history: GameRecord[]
+  puzzles: PuzzleStats
 }

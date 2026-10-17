@@ -1,5 +1,5 @@
 import type { Color } from 'chess.js'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { CLASS_INFO, moveAccuracy, type MoveClass } from '../lib/analysis'
 import { BOT_LEVELS, suggestedLevel } from '../lib/bot'
 import { update, useAppState } from '../state/store'
@@ -8,6 +8,11 @@ import type { GameSession, Mode, Settings } from '../state/types'
 import { BOARD_THEMES, PIECE_SETS, pieceUrl } from '../themes'
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center" onClick={onClose}>
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-stone-800 p-5 shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
