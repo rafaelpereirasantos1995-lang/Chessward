@@ -84,10 +84,21 @@ Duas camadas, que podem ser ligadas/desligadas:
 4. **Centro de treino** — puzzles, posições aleatórias, finais, aberturas com repetição espaçada.
 5. **Evolução** — estatísticas, sincronização entre aparelhos, app nas lojas, comentários com IA.
 
-## 6. Perguntas em aberto
+## 6. Decisões tomadas
 
-- Qual seu nível atual (rating aproximado)? Define o tom das explicações.
-- Precisa sincronizar entre PC e celular desde o início, ou local basta no começo?
+- **Rating**: começa no nível mais baixo (400) e sobe nas partidas do modo Desafio; na Fase 4 os treinos (puzzles, posições) também passam a contar.
+- **Sincronização completa**: além do progresso, a partida/treino em andamento é salva a cada lance e pode ser retomada em outro aparelho ou outro dia (Supabase).
+- **Comentários por regras** por enquanto (sem IA de linguagem).
+- **Modos**: Treino (todas as ajudas, não vale rating) e Desafio (sem ajudas, vale rating, análise no final).
+- O projeto ocupa este repositório (o antigo `contabilidade-interativa-vercel` foi removido).
+
+## 7. Status
+
+- ✅ Fase 1 completa (tabuleiro, máquina com 14 níveis, avaliação, classificação, temas, PWA, rating, sincronização).
+- ✅ Parte da Fase 2: mapa estático vermelho/verde e pré-visualização ao segurar a peça.
+- ✅ Parte da Fase 3: aberturas/gambitos, peça mais ativa, princípios, estrutura de peões, resumo pós-partida.
+- ⏭️ Próximo: camada dinâmica do mapa (ameaças em 2–3 lances via motor), puzzles e posições aleatórias.
+
+## 8. Perguntas em aberto
+
 - Quer publicar nas lojas ou o PWA instalado é suficiente?
-- Interesse em comentários por IA (tem custo por uso) ou só regras/motor?
-- O projeto fica neste repositório (junto de `contabilidade-interativa-vercel`) ou em um repositório próprio?
