@@ -1,11 +1,12 @@
 import { Chess, type Color, type Square } from 'chess.js'
-import { classify, type PosEval } from '../lib/analysis'
+import { classify, type PosEval, type Score } from '../lib/analysis'
 import { chooseBotMove, levelByElo } from '../lib/bot'
 import { classificationMessage, openingMessages, positionMessages, type CoachMsg } from '../lib/coach'
 import { Engine } from '../lib/engine'
-import { loadOpenings, lookupOpening } from '../lib/openings'
+import { loadOpenings, lookupOpening, openingsLoaded } from '../lib/openings'
 import { newRating } from '../lib/rating'
 import { playMoveSound } from '../lib/sound'
+import { harvestGame } from '../lib/stats'
 import { judgeMove } from '../lib/tactics'
 import { getState, subscribe, update } from '../state/store'
 import type { AppState, GameSession, Mode, Result } from '../state/types'
@@ -152,7 +153,8 @@ function endGame(result: Result, reason: string) {
     }
     const ended: GameSession = { ...g, status: 'ended', result, endReason: reason, ratingBefore: s.profile.rating, ratingAfter }
     const record = { id: g.id, date: Date.now(), mode: g.mode, botElo: g.botElo, playerColor: g.playerColor, result, endReason: reason, ratingAfter, moves: g.moves, startFen: g.startFen }
-    return { ...s, profile, current: ended, history: [record, ...s.history].slice(0, 50) }
+    const stats = ratingAfter !== undefined ? { ...s.stats, ratingHistory: [...s.stats.ratingHistory, { t: Date.now(), r: ratingAfter }].slice(-300) } : s.stats
+    return { ...s, profile, stats, current: ended, history: [record, ...s.history].slice(0, 50) }
   })
 }
 
@@ -186,6 +188,50 @@ function tick() {
   if (!g) return
   runBot(g)
   runAnalysis(g)
+  harvest(g)
+}
+
+/** Quando a partida termina e todos os lances foram analisados, alimenta a aba Evolução. */
+function harvest(g: GameSession) {
+  if (g.status !== 'ended' || g.moves.length < 2 || !openingsLoaded()) return
+  if (Object.keys(g.reviews).length < g.moves.length) return
+  if (getState().stats.harvested.includes(g.id)) return
+  const h = harvestGame(g, (fen) => lookupOpening(fen)?.family ?? null)
+  update((s) => {
+    const st = s.stats
+    const moveClasses = { ...st.moveClasses }
+    for (const [k, v] of Object.entries(h.classes)) moveClasses[k as keyof typeof moveClasses] = (moveClasses[k as keyof typeof moveClasses] ?? 0) + v
+    const openings = { ...st.openings }
+    if (h.family) {
+      const o = openings[h.family] ?? { games: 0, wins: 0, draws: 0, losses: 0, accSum: 0, accN: 0 }
+      const score = g.result === '1/2-1/2' ? 0.5 : (g.result === '1-0') === (g.playerColor === 'w') ? 1 : 0
+      openings[h.family] = {
+        games: o.games + 1,
+        wins: o.wins + (score === 1 ? 1 : 0),
+        draws: o.draws + (score === 0.5 ? 1 : 0),
+        losses: o.losses + (score === 0 ? 1 : 0),
+        accSum: o.accSum + (h.accuracy ?? 0),
+        accN: o.accN + (h.accuracy === null ? 0 : 1),
+      }
+    }
+    const known = new Set(s.mistakes.map((m) => m.id))
+    const mistakes = [...s.mistakes, ...h.mistakes.filter((m) => !known.has(m.id))].slice(-200)
+    return { ...s, mistakes, stats: { ...st, moveClasses, openings, harvested: [...st.harvested, g.id].slice(-200) } }
+  })
+}
+
+/** Avalia (pelas brancas) a posição depois de um lance — usado para aceitar alternativas na revisão de erros. */
+export async function scoreAfterMove(fen: string, uci: string): Promise<Score | null> {
+  const chess = new Chess(fen)
+  try {
+    chess.move(uciToMove(uci))
+  } catch {
+    return null
+  }
+  const terminal = terminalEval(chess)
+  if (terminal) return terminal.best
+  const res = await engines().analyst.analyze({ fen: chess.fen(), depth: ANALYSIS_DEPTH, options: { UCI_LimitStrength: false } })
+  return res?.lines[0]?.score ?? null
 }
 
 function runBot(g: GameSession) {
@@ -278,7 +324,7 @@ let started = false
 export function startController() {
   if (started) return
   started = true
-  void loadOpenings()
+  void loadOpenings().then(tick)
   subscribe(() => queueMicrotask(tick))
   tick()
 }

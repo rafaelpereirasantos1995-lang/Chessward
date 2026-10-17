@@ -109,3 +109,54 @@ describe('opening names', () => {
     expect(heat.e2?.reason).toContain('Cavalo em f3')
   })
 })
+
+import { reviewCard, isDue, MASTERED_BOX } from '../srs'
+import { harvestGame } from '../stats'
+
+describe('srs', () => {
+  it('moves cards through boxes and resets on error', () => {
+    const now = 1_000_000
+    let c = { box: 0, due: now }
+    expect(isDue(c, now)).toBe(true)
+    c = reviewCard(c, true, now)
+    expect(c.box).toBe(1)
+    expect(isDue(c, now)).toBe(false)
+    expect(isDue(c, now + 2 * 86400000)).toBe(true)
+    c = reviewCard(reviewCard(reviewCard(reviewCard(c, true, now), true, now), true, now), true, now)
+    expect(c.box).toBe(MASTERED_BOX)
+    expect(isDue(c, now + 1e12)).toBe(false)
+    expect(reviewCard(c, false, now).box).toBe(0)
+  })
+})
+
+describe('harvest', () => {
+  it('collects player classes, accuracy and mistakes', () => {
+    const start = new Chess().fen()
+    const g = {
+      id: 'g1',
+      startFen: start,
+      moves: ['e2e4', 'e7e5', 'f1c4', 'd8h4'],
+      playerColor: 'w' as const,
+      evals: { 0: { best: { cp: 30 }, bestUci: 'e2e4', depth: 12 }, 2: { best: { cp: 40 }, bestUci: 'g1f3', depth: 12 } },
+      reviews: { 1: { cls: 'best' as const, drop: 0 }, 2: { cls: 'good' as const, drop: 3 }, 3: { cls: 'mistake' as const, drop: 12 }, 4: { cls: 'blunder' as const, drop: 30 } },
+    }
+    const h = harvestGame(g, (fen) => (fen.startsWith('rnbqkbnr/pppppppp/8/8/4P3') ? 'Jogo do Peão do Rei' : null), 5)
+    expect(h.classes).toEqual({ best: 1, mistake: 1 })
+    expect(h.family).toBe('Jogo do Peão do Rei')
+    expect(h.mistakes).toHaveLength(1)
+    expect(h.mistakes[0]).toMatchObject({ playedUci: 'f1c4', bestUci: 'g1f3', fen: expect.stringContaining(' w ') })
+    expect(h.accuracy).toBeGreaterThan(50)
+  })
+})
+
+describe('opening family names', () => {
+  it('translates common beginner openings and reorders unknown ones', async () => {
+    await loadOpenings()
+    const c = new Chess()
+    for (const m of ['e4', 'e5', 'Nf3']) c.move(m)
+    expect(lookupOpening(c.fen())?.family).toBe('Abertura do Cavalo do Rei')
+    const g = new Chess()
+    g.move('g4')
+    expect(lookupOpening(g.fen())?.family).toBe('Abertura Grob')
+  })
+})
