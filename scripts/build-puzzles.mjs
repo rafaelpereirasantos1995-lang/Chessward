@@ -6,7 +6,7 @@
 import { createReadStream, readFileSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 
-const PER_BUCKET = 120 // desafios do Lichess por faixa de 100 pontos de rating
+const PER_BUCKET = 120 // desafios do Lichess por faixa de 100 pontos de rating e por tipo (ataque/defesa)
 const out = new Map()
 const buckets = new Map()
 
@@ -25,7 +25,8 @@ for (const file of process.argv.slice(2)) {
     if (line.startsWith('PuzzleId')) continue
     const [id, fen, moves, rating, deviation, popularity, plays, themes] = line.split(',')
     if (Number(popularity) < 85 || Number(plays) < 300 || Number(deviation) > 90) continue
-    const bucket = Math.floor(Number(rating) / 100)
+    const defense = /\b(defensiveMove|equality)\b/.test(themes)
+    const bucket = `${Math.floor(Number(rating) / 100)}:${defense ? 'd' : 'a'}`
     const n = buckets.get(bucket) ?? 0
     if (n >= PER_BUCKET) continue
     buckets.set(bucket, n + 1)
@@ -37,4 +38,5 @@ const rows = [...out.values()].sort((a, b) => a[3] - b[3])
 writeFileSync('public/puzzles.json', JSON.stringify(rows))
 const hist = {}
 for (const r of rows) hist[Math.floor(r[3] / 200) * 200] = (hist[Math.floor(r[3] / 200) * 200] ?? 0) + 1
-console.log(rows.length, 'desafios', hist)
+const defense = rows.filter((r) => /\b(defensiveMove|equality)\b/.test(r[4])).length
+console.log(rows.length, 'desafios', `(${rows.length - defense} ataque, ${defense} defesa)`, hist)

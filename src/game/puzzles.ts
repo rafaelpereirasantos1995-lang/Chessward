@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { checkPuzzleMove, fromRow, pickPuzzle, puzzlePosition, type Puzzle, type PuzzleRow } from '../lib/puzzle'
+import { checkPuzzleMove, fromRow, kindOf, pickPuzzle, puzzlePosition, type KindChoice, type Puzzle, type PuzzleRow } from '../lib/puzzle'
 import { newRating } from '../lib/rating'
 import { playMoveSound } from '../lib/sound'
 import { getState, subscribe, update } from '../state/store'
@@ -42,7 +42,8 @@ export async function nextPuzzle() {
   const st = getState().puzzles
   // Pular um desafio sem terminar conta como erro.
   if (st.current && st.current.status === 'playing' && !st.current.failed && st.current.step > 1) registerResult(false)
-  const p = pickPuzzle(list, getState().puzzles.rating, new Set(getState().puzzles.seen), getState().puzzles.filter)
+  const now = getState().puzzles
+  const p = pickPuzzle(list, now.rating, new Set(now.seen), now.filter, Math.random, now.kind)
   if (!p) return
   update((s) => ({
     ...s,
@@ -52,6 +53,11 @@ export async function nextPuzzle() {
       current: { puzzle: p, step: 0, failed: false, status: 'playing', feedback: null, solutionShown: false, ratingBefore: s.puzzles.rating },
     },
   }))
+}
+
+export function setKind(kind: KindChoice) {
+  update((s) => ({ ...s, puzzles: { ...s.puzzles, kind, filter: 'random' } }))
+  void nextPuzzle()
 }
 
 export function setFilter(filter: string) {
@@ -67,6 +73,8 @@ function registerResult(win: boolean) {
     const st = s.puzzles
     const rating = newRating(st.rating, cur.puzzle.rating, win ? 1 : 0, st.played)
     const streak = win ? st.streak + 1 : 0
+    const k = kindOf(cur.puzzle)
+    const byKind = { ...st.byKind, [k]: { played: st.byKind[k].played + 1, solved: st.byKind[k].solved + (win ? 1 : 0) } }
     return {
       ...s,
       puzzles: {
@@ -77,6 +85,7 @@ function registerResult(win: boolean) {
         solved: st.solved + (win ? 1 : 0),
         streak,
         bestStreak: Math.max(st.bestStreak, streak),
+        byKind,
         current: { ...cur, ratingAfter: rating },
       },
     }

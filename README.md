@@ -10,7 +10,8 @@ App pessoal de treino de xadrez para web e celular (PWA instalável, funciona of
   aberturas e gambitos em português, princípios, estrutura de peões, peça mais ativa e alertas táticos.
 - **Testes (desafios táticos)**: posições sorteadas perto do seu nível, sem nenhuma ajuda. Cada lance certo
   faz o adversário responder e o desafio continua até você resolver ou errar (estilo Lichess). Rating próprio
-  (começa em 400), sequência de acertos e filtro por tipo (mate em 1, garfo, final…).
+  (começa em 400), sequência de acertos e filtro por tema. Modos **⚔️ Ataque** (encontrar a combinação vencedora),
+  **🛡️ Defesa** (o adversário ameaça algo e só um lance salva) ou **🎲 Misto** (sorteia entre os dois).
 - **Resumo da partida**: precisão sua e da máquina, contagem por tipo de lance e revisão lance a lance com o melhor lance indicado.
 - **Aparência**: 8 tabuleiros e 8 conjuntos de peças.
 - **Progresso salvo sempre**: a partida em andamento continua de onde parou; com Supabase configurado,
@@ -48,7 +49,8 @@ O `vercel.json` já define build e rotas. Para sincronização, adicione as vari
 `public/puzzles.json` é montado por `scripts/build-puzzles.mjs` a partir de:
 
 - desafios gerados com o Stockfish (`scripts/generate-puzzles.mjs`): partidas do motor contra si mesmo;
-  quando um lance perde material/partida e a punição é **única**, vira um desafio;
+  quando um lance perde material/partida e a punição é **única**, vira um desafio de ataque; no modo `defesa`,
+  quando o adversário cria uma ameaça real e só um lance a neutraliza, vira um desafio de defesa;
 - a base oficial do Lichess (CC0, milhões de desafios com rating e temas reais), quando disponível:
   `zstd -d lichess_db_puzzle.csv.zst && node scripts/build-puzzles.mjs lichess_db_puzzle.csv`.
 

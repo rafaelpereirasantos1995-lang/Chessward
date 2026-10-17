@@ -12,7 +12,7 @@ export function defaultState(): AppState {
     settings: { boardTheme: 'madeira', pieceSet: 'cburnett', showCoords: true, sound: true, heatmap: true, preview: true, coach: true, tab: 'jogar' },
     current: null,
     history: [],
-    puzzles: { rating: START_RATING, peak: START_RATING, played: 0, solved: 0, streak: 0, bestStreak: 0, seen: [], filter: 'random', current: null },
+    puzzles: { rating: START_RATING, peak: START_RATING, played: 0, solved: 0, streak: 0, bestStreak: 0, seen: [], filter: 'random', kind: 'mix', byKind: { attack: { played: 0, solved: 0 }, defense: { played: 0, solved: 0 } }, current: null },
   }
 }
 

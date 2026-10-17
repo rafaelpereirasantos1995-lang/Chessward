@@ -2,12 +2,14 @@
 // O motor joga partidas contra si mesmo com erros propositais; quando um lance perde a partida
 // e a punição é única, a posição vira um desafio (lance do adversário + solução).
 //
-// Uso: node scripts/generate-puzzles.mjs <saida.jsonl> <quantidade> [semente]
+// Com o modo "defesa", gera o contrário: o adversário cria uma ameaça e só um lance salva a posição.
+//
+// Uso: node scripts/generate-puzzles.mjs <saida.jsonl> <quantidade> [semente] [ataque|defesa]
 import { spawn } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
 import { Chess } from 'chess.js'
 
-const [out, target = '200', seedArg = '1'] = process.argv.slice(2)
+const [out, target = '200', seedArg = '1', mode = 'ataque'] = process.argv.slice(2)
 let seed = Number(seedArg) * 9973
 const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
 
@@ -156,6 +158,74 @@ function themesAndRating(fenBefore, blunder, sol) {
   return { themes, rating: Math.max(400, Math.min(2400, rating)) }
 }
 
+/** Mesma posição com a vez passada (para medir a ameaça: "e se eu não fizer nada?"). */
+const passTurn = (fen) => {
+  const p = fen.split(' ')
+  p[1] = p[1] === 'w' ? 'b' : 'w'
+  p[3] = '-'
+  return p.join(' ')
+}
+
+/** Desafio de defesa: só um lance evita perder; depois segue enquanto a defesa continuar única. */
+async function buildDefense(sf, fenAfterMove, lastMove) {
+  const c = new Chess(fenAfterMove)
+  if (c.moves().length < 3) return null
+  const moves = []
+  let mateThreat = false
+  for (let k = 0; k < 3; k++) {
+    const lines = await sf.analyze(c.fen(), 14, 3)
+    if (lines.length < 2) break
+    const vb = val(lines[0].score)
+    const vs = val(lines[1].score)
+    const unique = vb >= -150 && vs <= -200 && vb - vs >= 250 && c.moves().length >= 3
+    if (!unique) {
+      if (k === 0) return null
+      moves.pop()
+      c.undo()
+      break
+    }
+    const best = new Chess(c.fen()).move(uciMove(lines[0].pv[0]))
+    if (k === 0) {
+      // Recaptura óbvia não é um bom desafio de defesa (guarda poucas).
+      if (lastMove.captured && best.to === lastMove.to && rnd() > 0.15) return null
+      if (!c.inCheck()) {
+        // Precisa existir ameaça real: se eu passasse a vez, o adversário ficaria ganhando.
+        const threat = await sf.analyze(passTurn(c.fen()), 10, 1)
+        if (!threat.length || val(threat[0].score) < 250) return null
+        mateThreat = threat[0].score.mate > 0
+      }
+    }
+    c.move(uciMove(lines[0].pv[0]))
+    moves.push(best.lan)
+    if (c.isGameOver()) break
+    const reply = await sf.analyze(c.fen(), 12, 1)
+    if (!reply.length) break
+    moves.push(c.move(uciMove(reply[0].pv[0])).lan)
+  }
+  if (moves.length % 2 === 0) moves.pop()
+  return moves.length ? { moves, mateThreat } : null
+}
+
+function defenseThemesAndRating(fenBefore, blunder, sol) {
+  const c = new Chess(fenBefore)
+  c.move(uciMove(blunder))
+  const inCheck = c.inCheck()
+  const first = new Chess(c.fen()).move(uciMove(sol.moves[0]))
+  const solverMoves = Math.ceil(sol.moves.length / 2)
+  const quiet = !first.captured && first.piece !== 'k'
+  const themes = ['defensiveMove']
+  if (sol.mateThreat) themes.push('defendMate')
+  else if (inCheck) themes.push('defendCheck')
+  else themes.push('savePiece')
+  if (quiet) themes.push('quietMove')
+  themes.push(solverMoves === 1 ? 'oneMove' : solverMoves === 2 ? 'short' : 'long')
+  for (const u of sol.moves) c.move(uciMove(u))
+  if (c.board().flat().filter((p) => p && p.type !== 'p' && p.type !== 'k').length <= 4) themes.push('endgame')
+  let rating = 650 + (sol.mateThreat ? 200 : 0) + (quiet ? 250 : 0) + (solverMoves - 1) * 350
+  rating += Math.round((rnd() - 0.5) * 240)
+  return { themes, rating: Math.max(400, Math.min(2400, rating)) }
+}
+
 async function main() {
   const sf = new Stockfish()
   const seen = new Set()
@@ -182,8 +252,26 @@ async function main() {
         uci = lines[w.findIndex((x) => (r -= x) <= 0)]?.pv[0] ?? lines[0].pv[0]
       }
       const beforeMover = val(lines[0].score)
-      c.move(uciMove(uci))
+      const lastMove = c.move(uciMove(uci))
       if (c.isGameOver() || ply < 6) continue
+      if (mode === 'defesa') {
+        // Pré-filtro rápido: só uma resposta não perde?
+        const quick = await sf.analyze(c.fen(), 10, 2)
+        if (quick.length < 2 || val(quick[0].score) < -150 || val(quick[1].score) > -200) continue
+        const key = c.fen().split(' ').slice(0, 4).join(' ')
+        if (seen.has(key)) continue
+        seen.add(key)
+        const sol = await buildDefense(sf, c.fen(), lastMove)
+        if (!sol) continue
+        const { themes, rating } = defenseThemesAndRating(fen, uci, sol)
+        // Fugir com a peça atacada é o caso mais comum: guarda só uma parte.
+        if (themes.includes('savePiece') && !themes.includes('quietMove') && rnd() > 0.6) continue
+        const id = `d${seedArg}-${made}`
+        appendFileSync(out, JSON.stringify([id, fen, [uci, ...sol.moves].join(' '), rating, themes.join(' ')]) + '\n')
+        made++
+        if (made % 25 === 0) console.log(`[${seedArg}] ${made} desafios de defesa`)
+        continue
+      }
       // O lance jogado entregou a partida? (quem joga agora fica com grande vantagem)
       const after = await sf.analyze(c.fen(), 10, 1)
       if (!after.length) continue

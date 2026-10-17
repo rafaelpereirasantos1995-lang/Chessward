@@ -1,7 +1,7 @@
 import type { Color } from 'chess.js'
 import type { MoveClass, PosEval } from '../lib/analysis'
 import type { CoachMsg } from '../lib/coach'
-import type { Puzzle } from '../lib/puzzle'
+import type { KindChoice, Puzzle, PuzzleKind } from '../lib/puzzle'
 
 export type Mode = 'treino' | 'desafio'
 export type Result = '1-0' | '0-1' | '1/2-1/2'
@@ -72,6 +72,8 @@ export interface PuzzleStats {
   /** Últimos desafios vistos, para não repetir. */
   seen: string[]
   filter: string
+  kind: KindChoice
+  byKind: Record<PuzzleKind, { played: number; solved: number }>
   current: PuzzleSession | null
 }
 

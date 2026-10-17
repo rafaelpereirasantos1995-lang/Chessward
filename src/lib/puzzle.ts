@@ -73,28 +73,49 @@ export const THEMES: Record<string, string> = {
   middlegame: 'Meio-jogo',
   opening: 'Abertura',
   backRankMate: 'Mate na última fileira',
+  defensiveMove: 'Lance defensivo',
+  defendMate: 'Defesa contra mate',
+  defendCheck: 'Saída de xeque',
+  savePiece: 'Salvar material',
+  equality: 'Salvar o empate',
   advantage: 'Vantagem',
   crushing: 'Vantagem decisiva',
 }
 
 export const themeLabel = (t: string) => THEMES[t] ?? t
 
+export type PuzzleKind = 'attack' | 'defense'
+export type KindChoice = PuzzleKind | 'mix'
+
+/** Defesa = encontrar o lance que evita a perda (temas do Lichess: defensiveMove / equality). */
+export const kindOf = (p: Puzzle): PuzzleKind => (p.themes.includes('defensiveMove') || p.themes.includes('equality') ? 'defense' : 'attack')
+
 /** Filtros oferecidos ao jogador (o padrão é aleatório). */
-export const THEME_FILTERS: { id: string; label: string; match: (p: Puzzle) => boolean }[] = [
-  { id: 'random', label: '🎲 Aleatório', match: () => true },
-  { id: 'mateIn1', label: 'Mate em 1', match: (p) => p.themes.includes('mateIn1') },
-  { id: 'mateLong', label: 'Mate em 2+', match: (p) => p.themes.includes('mate') && !p.themes.includes('mateIn1') },
-  { id: 'fork', label: 'Garfo', match: (p) => p.themes.includes('fork') },
-  { id: 'hangingPiece', label: 'Peça pendurada', match: (p) => p.themes.includes('hangingPiece') },
-  { id: 'long', label: 'Combinações longas', match: (p) => p.themes.includes('long') || p.themes.includes('veryLong') },
-  { id: 'quietMove', label: 'Lance silencioso', match: (p) => p.themes.includes('quietMove') },
-  { id: 'endgame', label: 'Final', match: (p) => p.themes.includes('endgame') },
+export const THEME_FILTERS: { id: string; label: string; kind: KindChoice; match: (p: Puzzle) => boolean }[] = [
+  { id: 'random', label: '🎲 Qualquer', kind: 'mix', match: () => true },
+  { id: 'mateIn1', label: 'Mate em 1', kind: 'attack', match: (p) => p.themes.includes('mateIn1') },
+  { id: 'mateLong', label: 'Mate em 2+', kind: 'attack', match: (p) => p.themes.includes('mate') && !p.themes.includes('mateIn1') },
+  { id: 'fork', label: 'Garfo', kind: 'attack', match: (p) => p.themes.includes('fork') },
+  { id: 'hangingPiece', label: 'Peça pendurada', kind: 'attack', match: (p) => p.themes.includes('hangingPiece') },
+  { id: 'defendMate', label: 'Defesa contra mate', kind: 'defense', match: (p) => p.themes.includes('defendMate') },
+  { id: 'savePiece', label: 'Salvar material', kind: 'defense', match: (p) => p.themes.includes('savePiece') },
+  { id: 'defendCheck', label: 'Saída de xeque', kind: 'defense', match: (p) => p.themes.includes('defendCheck') },
+  { id: 'long', label: 'Sequências longas', kind: 'mix', match: (p) => p.themes.includes('short') || p.themes.includes('long') || p.themes.includes('veryLong') },
+  { id: 'quietMove', label: 'Lance silencioso', kind: 'mix', match: (p) => p.themes.includes('quietMove') },
+  { id: 'endgame', label: 'Final', kind: 'mix', match: (p) => p.themes.includes('endgame') },
 ]
 
+/** Filtros que fazem sentido para o tipo escolhido. */
+export const filtersFor = (kind: KindChoice) => THEME_FILTERS.filter((f) => f.kind === 'mix' || kind === 'mix' || f.kind === kind)
+
 /** Sorteia um desafio perto do rating, evitando os já vistos; amplia a faixa se faltar opção. */
-export function pickPuzzle(all: Puzzle[], rating: number, seen: Set<string>, filter = 'random', rnd = Math.random): Puzzle | null {
+export function pickPuzzle(all: Puzzle[], rating: number, seen: Set<string>, filter = 'random', rnd = Math.random, kind: KindChoice = 'mix'): Puzzle | null {
   const match = THEME_FILTERS.find((f) => f.id === filter)?.match ?? (() => true)
-  const pool = all.filter(match)
+  const matching = all.filter(match)
+  // No modo misto, sorteia primeiro o tipo para equilibrar ataque e defesa.
+  const wanted: KindChoice = kind === 'mix' ? (rnd() < 0.5 ? 'attack' : 'defense') : kind
+  let pool = matching.filter((p) => kindOf(p) === wanted)
+  if (!pool.length && kind === 'mix') pool = matching
   if (!pool.length) return null
   for (const range of [100, 200, 350, 600, 1000, 3000]) {
     const near = pool.filter((p) => Math.abs(p.rating - rating) <= range && !seen.has(p.id))

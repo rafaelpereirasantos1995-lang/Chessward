@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkPuzzleMove, fromRow, pickPuzzle, puzzlePosition, type PuzzleRow } from '../puzzle'
+import { checkPuzzleMove, filtersFor, fromRow, kindOf, pickPuzzle, puzzlePosition, type PuzzleRow } from '../puzzle'
 
 // Lance do adversário (Qe2?) e depois a solução: o jogador ganha a dama com a torre.
 const row: PuzzleRow = ['t1', '3k4/p2bn2r/2p1p2p/4Npp1/1r1P4/6P1/P3RP1P/R4BK1 w - - 4 24', 'e2b2 b4b2', 480, 'hangingPiece oneMove']
@@ -37,5 +37,25 @@ describe('puzzles', () => {
     expect(pickPuzzle(list, 450, new Set(), 'random', () => 0)?.id).toBe('t1')
     expect(pickPuzzle(list, 450, new Set(['t1']), 'random', () => 0)?.id).toBe('t2')
     expect(pickPuzzle(list, 450, new Set(), 'mateLong', () => 0)?.id).toBe('t2')
+  })
+  it('separates attack and defense puzzles', () => {
+    const def = fromRow(['d1', row[1], row[2], 700, 'defensiveMove savePiece oneMove'])
+    const atk = fromRow(row)
+    expect(kindOf(def)).toBe('defense')
+    expect(kindOf(atk)).toBe('attack')
+    const list = [atk, def]
+    expect(pickPuzzle(list, 450, new Set(), 'random', () => 0.1, 'defense')?.id).toBe('d1')
+    expect(pickPuzzle(list, 700, new Set(), 'random', () => 0.1, 'attack')?.id).toBe('t1')
+    // Misto: o sorteio do tipo decide (rnd < 0.5 → ataque, senão defesa).
+    expect(pickPuzzle(list, 600, new Set(), 'random', () => 0.9, 'mix')?.id).toBe('d1')
+    expect(pickPuzzle(list, 600, new Set(), 'random', () => 0.1, 'mix')?.id).toBe('t1')
+    // Sem desafios de defesa, o modo misto cai para os que existem.
+    expect(pickPuzzle([atk], 600, new Set(), 'random', () => 0.9, 'mix')?.id).toBe('t1')
+    expect(pickPuzzle([atk], 600, new Set(), 'random', () => 0.9, 'defense')).toBeNull()
+  })
+  it('shows only filters that fit the chosen kind', () => {
+    expect(filtersFor('defense').some((f) => f.id === 'fork')).toBe(false)
+    expect(filtersFor('defense').some((f) => f.id === 'defendMate')).toBe(true)
+    expect(filtersFor('attack').some((f) => f.id === 'defendMate')).toBe(false)
   })
 })

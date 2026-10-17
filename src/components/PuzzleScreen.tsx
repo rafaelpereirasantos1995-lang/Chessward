@@ -1,8 +1,8 @@
 import type { Square } from 'chess.js'
 import { Chess } from 'chess.js'
 import { useEffect, useMemo, useState } from 'react'
-import { loadPuzzles, nextPuzzle, puzzleMove, setFilter, showSolution, usePuzzleCount } from '../game/puzzles'
-import { puzzlePosition, THEME_FILTERS, themeLabel, uciOf } from '../lib/puzzle'
+import { loadPuzzles, nextPuzzle, puzzleMove, setFilter, setKind, showSolution, usePuzzleCount } from '../game/puzzles'
+import { filtersFor, kindOf, puzzlePosition, themeLabel, uciOf, type KindChoice } from '../lib/puzzle'
 import type { HeatMap } from '../lib/tactics'
 import { getState, useAppState } from '../state/store'
 import { themeById } from '../themes'
@@ -58,6 +58,8 @@ export function PuzzleScreen() {
 
   const delta = cur?.ratingAfter !== undefined ? cur.ratingAfter - cur.ratingBefore : null
   const sideName = solver === 'w' ? 'Brancas' : 'Pretas'
+  const defense = cur ? kindOf(cur.puzzle) === 'defense' : false
+  const task = defense ? `o adversário ameaça algo. Encontre o lance que salva as ${sideName}.` : `encontre o melhor lance para as ${sideName}.`
 
   let status: { text: string; tone: string }
   if (!cur || count === null) status = { text: 'Carregando desafios…', tone: 'bg-stone-800' }
@@ -68,15 +70,18 @@ export function PuzzleScreen() {
   else if (flash || (cur.feedback && !cur.feedback.ok)) status = { text: '✗ Não é esse lance. Tente outro!', tone: 'bg-red-900/50 border-red-500' }
   else if (step === 0) status = { text: 'Observe o lance do adversário…', tone: 'bg-stone-800 border-stone-600' }
   else if (step % 2 === 0) status = { text: '✓ Correto! O adversário responde…', tone: 'bg-green-900/40 border-green-600' }
-  else if (cur.feedback?.ok) status = { text: `✓ Correto! Continue — melhor lance para as ${sideName}.`, tone: 'bg-green-900/40 border-green-600' }
-  else status = { text: `Sua vez: encontre o melhor lance para as ${sideName}.`, tone: 'bg-stone-800 border-amber-500' }
+  else if (cur.feedback?.ok) status = { text: `✓ Correto! Continue — ${task}`, tone: 'bg-green-900/40 border-green-600' }
+  else status = { text: `Sua vez: ${task}`, tone: 'bg-stone-800 border-amber-500' }
 
   const pct = stats.played ? Math.round((stats.solved / stats.played) * 100) : 0
 
   return (
     <main className="grid flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <section className="mx-auto w-full max-w-[min(100%,calc(100vh-12rem))] lg:max-w-[calc(100vh-9rem)]">
-        <div className={`mb-1.5 rounded-lg border-l-4 px-3 py-2 text-sm font-semibold ${status.tone}`}>{status.text}</div>
+        <div className={`mb-1.5 flex items-start gap-2 rounded-lg border-l-4 px-3 py-2 text-sm font-semibold ${status.tone}`}>
+          {cur && <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${defense ? 'bg-sky-700' : 'bg-rose-700'}`}>{defense ? '🛡️ Defesa' : '⚔️ Ataque'}</span>}
+          <span>{status.text}</span>
+        </div>
         <Board
           fen={fen}
           orientation={solver}
@@ -143,9 +148,36 @@ export function PuzzleScreen() {
         )}
 
         <div className="rounded-xl bg-stone-800 p-3">
-          <h3 className="mb-2 text-sm font-semibold text-stone-300">Tipo de desafio</h3>
+          <h3 className="mb-2 text-sm font-semibold text-stone-300">Modo</h3>
+          <div className="mb-3 grid grid-cols-3 gap-1 rounded-lg bg-stone-900/60 p-1">
+            {(
+              [
+                ['mix', '🎲 Misto'],
+                ['attack', '⚔️ Ataque'],
+                ['defense', '🛡️ Defesa'],
+              ] as [KindChoice, string][]
+            ).map(([k, label]) => (
+              <button key={k} onClick={() => setKind(k)} className={`rounded-md py-1.5 text-sm font-semibold ${stats.kind === k ? 'bg-amber-500 text-stone-900' : 'text-stone-300 hover:bg-stone-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="mb-3 grid grid-cols-2 gap-2 text-center text-xs">
+            {(['attack', 'defense'] as const).map((k) => {
+              const b = stats.byKind[k]
+              return (
+                <div key={k} className="rounded-lg bg-stone-900/60 py-1.5">
+                  <div className="text-stone-400">{k === 'attack' ? '⚔️ Ataque' : '🛡️ Defesa'}</div>
+                  <div className="font-semibold">
+                    {b.solved}/{b.played} {b.played > 0 && <span className="text-stone-400">({Math.round((b.solved / b.played) * 100)}%)</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <h3 className="mb-2 text-sm font-semibold text-stone-300">Tema</h3>
           <div className="flex flex-wrap gap-1.5">
-            {THEME_FILTERS.map((f) => (
+            {filtersFor(stats.kind).map((f) => (
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
@@ -158,7 +190,7 @@ export function PuzzleScreen() {
         </div>
 
         <p className="text-xs leading-relaxed text-stone-500">
-          Sem ajudas: encontre a sequência inteira. Cada lance certo faz o adversário responder até o desafio acabar. Errar uma vez já conta como erro no rating, mas você pode continuar tentando ou ver a solução.
+          Sem ajudas. Ataque: encontre a combinação vencedora. Defesa: o adversário criou uma ameaça e só um lance evita a perda. Cada lance certo faz o adversário responder até o desafio acabar. Errar uma vez já conta como erro no rating, mas você pode continuar tentando ou ver a solução.
           {count !== null && ` · ${count} desafios disponíveis.`}
         </p>
       </aside>
