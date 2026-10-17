@@ -109,3 +109,150 @@ describe('opening names', () => {
     expect(heat.e2?.reason).toContain('Cavalo em f3')
   })
 })
+
+import { reviewCard, isDue, MASTERED_BOX } from '../srs'
+import { harvestGame } from '../stats'
+
+describe('srs', () => {
+  it('moves cards through boxes and resets on error', () => {
+    const now = 1_000_000
+    let c = { box: 0, due: now }
+    expect(isDue(c, now)).toBe(true)
+    c = reviewCard(c, true, now)
+    expect(c.box).toBe(1)
+    expect(isDue(c, now)).toBe(false)
+    expect(isDue(c, now + 2 * 86400000)).toBe(true)
+    c = reviewCard(reviewCard(reviewCard(reviewCard(c, true, now), true, now), true, now), true, now)
+    expect(c.box).toBe(MASTERED_BOX)
+    expect(isDue(c, now + 1e12)).toBe(false)
+    expect(reviewCard(c, false, now).box).toBe(0)
+  })
+})
+
+describe('harvest', () => {
+  it('collects player classes, accuracy and mistakes', () => {
+    const start = new Chess().fen()
+    const g = {
+      id: 'g1',
+      startFen: start,
+      moves: ['e2e4', 'e7e5', 'f1c4', 'd8h4'],
+      playerColor: 'w' as const,
+      evals: { 0: { best: { cp: 30 }, bestUci: 'e2e4', depth: 12 }, 2: { best: { cp: 40 }, bestUci: 'g1f3', depth: 12 } },
+      reviews: { 1: { cls: 'best' as const, drop: 0 }, 2: { cls: 'good' as const, drop: 3 }, 3: { cls: 'mistake' as const, drop: 12 }, 4: { cls: 'blunder' as const, drop: 30 } },
+    }
+    const h = harvestGame(g, (fen) => (fen.startsWith('rnbqkbnr/pppppppp/8/8/4P3') ? 'Jogo do Peão do Rei' : null), 5)
+    expect(h.classes).toEqual({ best: 1, mistake: 1 })
+    expect(h.family).toBe('Jogo do Peão do Rei')
+    expect(h.mistakes).toHaveLength(1)
+    expect(h.mistakes[0]).toMatchObject({ playedUci: 'f1c4', bestUci: 'g1f3', fen: expect.stringContaining(' w ') })
+    expect(h.accuracy).toBeGreaterThan(50)
+  })
+})
+
+describe('opening family names', () => {
+  it('translates common beginner openings and reorders unknown ones', async () => {
+    await loadOpenings()
+    const c = new Chess()
+    for (const m of ['e4', 'e5', 'Nf3']) c.move(m)
+    expect(lookupOpening(c.fen())?.family).toBe('Abertura do Cavalo do Rei')
+    const g = new Chess()
+    g.move('g4')
+    expect(lookupOpening(g.fen())?.family).toBe('Abertura Grob')
+  })
+})
+
+import { isRealThreat } from '../analysis'
+describe('threats', () => {
+  it('flags a threat only when passing would cost real winning chances', () => {
+    expect(isRealThreat({ cp: 0 }, { cp: 300 }, 'w')).toBe(true) // brancas ameaçam
+    expect(isRealThreat({ cp: 0 }, { cp: 40 }, 'w')).toBe(false)
+    expect(isRealThreat({ cp: 50 }, { mate: -2 }, 'b')).toBe(true) // pretas ameaçam mate
+  })
+})
+
+import { afterMove, formatClock, newClock, pause, remaining, resume } from '../clock'
+import { chess960Fen } from '../chess960'
+
+describe('clock', () => {
+  it('runs only for the side to move, adds increment and pauses', () => {
+    let c = newClock(5, 3, 0)
+    expect(remaining(c, 'w', 'w', 10_000)).toBe(290_000)
+    expect(remaining(c, 'b', 'w', 10_000)).toBe(300_000)
+    c = afterMove(c, 'w', 10_000)
+    expect(c.w).toBe(293_000)
+    c = pause(c, 'b', 15_000)
+    expect(c.b).toBe(295_000)
+    expect(remaining(c, 'b', 'b', 99_000)).toBe(295_000) // pausado não corre
+    c = resume(c, 100_000)
+    expect(remaining(c, 'b', 'b', 101_000)).toBe(294_000)
+  })
+  it('formats', () => {
+    expect(formatClock(65_000)).toBe('1:05')
+    expect(formatClock(9_450)).toBe('9.4')
+    expect(formatClock(-5)).toBe('0.0')
+  })
+})
+
+describe('chess960', () => {
+  it('creates legal starts with bishops on opposite colors and king between rooks', () => {
+    for (let i = 0; i < 50; i++) {
+      const fen = chess960Fen()
+      const back = fen.split('/')[0]
+      const bs = [...back].map((p, j) => (p === 'b' ? j % 2 : -1)).filter((x) => x >= 0)
+      expect(bs.sort()).toEqual([0, 1])
+      expect(back.indexOf('r')).toBeLessThan(back.indexOf('k'))
+      expect(back.lastIndexOf('r')).toBeGreaterThan(back.indexOf('k'))
+      expect(() => new Chess(fen)).not.toThrow()
+    }
+  })
+})
+
+import { ENDGAMES, endgameVerdict } from '../endgames'
+describe('endgames', () => {
+  const byId = (id: string) => ENDGAMES.find((e) => e.id === id)!
+  it('all positions are legal and the side to move is consistent', () => {
+    for (const e of ENDGAMES) expect(() => new Chess(e.fen)).not.toThrow()
+  })
+  it('mate is success, stalemate is failure for win goals', () => {
+    expect(endgameVerdict(byId('krrk'), new Chess('R3k3/7R/8/8/8/8/8/4K3 b - - 0 1'), 3)).toMatchObject({ done: true, success: true })
+    expect(endgameVerdict(byId('kqk'), new Chess('k7/2Q5/1K6/8/8/8/8/8 b - - 0 1'), 5)).toMatchObject({ done: true, success: false })
+  })
+  it('draw goal: surviving the limit or a lost eval', () => {
+    const e = byId('kpk-defense')
+    expect(endgameVerdict(e, new Chess(e.fen), 25, { cp: 0 })).toMatchObject({ done: true, success: true })
+    expect(endgameVerdict(e, new Chess(e.fen), 3, { cp: 900 })).toMatchObject({ done: true, success: false })
+    expect(endgameVerdict(e, new Chess(e.fen), 3, { cp: 20 })).toEqual({ done: false })
+  })
+  it('promotion and bare king', () => {
+    expect(endgameVerdict(byId('kpk-front'), (() => { const c = new Chess('4k3/4P3/4K3/8/8/8/8/8 w - - 0 1'); c.move('Kd6'); c.move('Kf7'); c.move('e8=Q+'); return c })(), 4)).toMatchObject({ done: true })
+    expect(endgameVerdict(byId('r-vs-p'), new Chess('8/8/8/8/8/2k5/8/1K4R1 b - - 0 1'), 4)).toMatchObject({ done: true, success: true })
+  })
+})
+
+import { translateName } from '../openings'
+import { cardKey, openingQueue, OPENING_LINES, GAMES, gameMoves } from '../../game/trainers'
+
+describe('trainers data', () => {
+  it('opening lines and master games replay legally', () => {
+    for (const f of OPENING_LINES) for (const [, uci] of f.lines) {
+      const c = new Chess()
+      for (const u of uci.split(' ')) c.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] })
+    }
+    for (let i = 0; i < GAMES.length; i++) {
+      const c = new Chess()
+      for (const u of gameMoves(i)) c.move({ from: u.slice(0, 2), to: u.slice(2, 4), promotion: u[4] })
+      expect(GAMES[i][2]).toBeGreaterThanOrEqual(2300)
+    }
+  })
+  it('opening queue: due first, then up to 4 new', () => {
+    const fam = OPENING_LINES[0].family
+    const t = { endgame: null, endgamesDone: {}, opening: null, guess: null, guessBest: null, openingCards: { [cardKey(fam, 5, 'w')]: { box: 1, due: 0 }, [cardKey(fam, 0, 'w')]: { box: 2, due: 9e15 } } }
+    const q = openingQueue(t, fam, 'w', 1000)
+    expect(q[0]).toBe(5)
+    expect(q).not.toContain(0)
+    expect(q.length).toBe(5)
+  })
+  it('translates full opening names', () => {
+    expect(translateName("Queen's Gambit Declined: Exchange Variation")).toBe('Gambito da Dama Recusado — Variante das Trocas')
+  })
+})

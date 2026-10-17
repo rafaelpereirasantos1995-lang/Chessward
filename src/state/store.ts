@@ -9,17 +9,20 @@ export function defaultState(): AppState {
     version: 1,
     updatedAt: 0,
     profile: { rating: START_RATING, peak: START_RATING, ratedGames: 0, wins: 0, draws: 0, losses: 0 },
-    settings: { boardTheme: 'madeira', pieceSet: 'cburnett', showCoords: true, sound: true, heatmap: true, preview: true, coach: true, tab: 'jogar' },
+    settings: { boardTheme: 'madeira', pieceSet: 'cburnett', showCoords: true, sound: true, heatmap: true, preview: true, coach: true, threats: true, tab: 'jogar' },
     current: null,
     history: [],
     puzzles: { rating: START_RATING, peak: START_RATING, played: 0, solved: 0, streak: 0, bestStreak: 0, seen: [], filter: 'random', kind: 'mix', byKind: { attack: { played: 0, solved: 0 }, defense: { played: 0, solved: 0 } }, current: null },
+    stats: { ratingHistory: [], puzzleHistory: [], byTheme: {}, moveClasses: {}, openings: {}, harvested: [] },
+    mistakes: [],
+    training: { endgame: null, endgamesDone: {}, openingCards: {}, opening: null, guess: null, guessBest: null },
   }
 }
 
 /** Completa campos que não existiam em versões anteriores do estado salvo. */
 function withDefaults(s: AppState): AppState {
   const d = defaultState()
-  return { ...d, ...s, settings: { ...d.settings, ...s.settings }, profile: { ...d.profile, ...s.profile }, puzzles: { ...d.puzzles, ...s.puzzles } }
+  return { ...d, ...s, settings: { ...d.settings, ...s.settings }, profile: { ...d.profile, ...s.profile }, puzzles: { ...d.puzzles, ...s.puzzles }, stats: { ...d.stats, ...s.stats }, training: { ...d.training, ...s.training } }
 }
 
 function load(): AppState {

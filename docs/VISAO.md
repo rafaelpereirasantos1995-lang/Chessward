@@ -99,7 +99,10 @@ Duas camadas, que podem ser ligadas/desligadas:
 - ✅ Parte da Fase 3: aberturas/gambitos, peça mais ativa, princípios, estrutura de peões, resumo pós-partida.
 - ✅ Testes (desafios táticos aleatórios estilo Lichess): sem ajuda, continua a cada lance certo, rating próprio, sequência e filtros por tema; modos Ataque, Defesa ou Misto, com acertos separados por tipo.
 - ✅ Base de desafios do Lichess (~8.400, de 200 a 3000), completada com defesas geradas pelo Stockfish na faixa iniciante.
-- ⏭️ Próximo: camada dinâmica do mapa (ameaças em 2–3 lances via motor), finais e aberturas com repetição espaçada.
+- ✅ Mapa dinâmico (ameaças do motor), relógio, às cegas, Xadrez 960 (sem roque).
+- ✅ Aba Treinos: finais essenciais, aberturas com repetição espaçada, adivinhe o lance (partidas 2300+ do Lichess).
+- ✅ Aba Evolução: gráfico de rating, aberturas, temas fracos, qualidade dos lances e revisão dos erros.
+- ⏭️ Próximo: deploy (Vercel + Supabase) e decisão sobre publicar nas lojas.
 
 ## 8. Perguntas em aberto
 

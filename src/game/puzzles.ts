@@ -75,8 +75,16 @@ function registerResult(win: boolean) {
     const streak = win ? st.streak + 1 : 0
     const k = kindOf(cur.puzzle)
     const byKind = { ...st.byKind, [k]: { played: st.byKind[k].played + 1, solved: st.byKind[k].solved + (win ? 1 : 0) } }
+    const byTheme = { ...s.stats.byTheme }
+    for (const t of cur.puzzle.themes) {
+      if (['oneMove', 'short', 'long', 'veryLong', 'defensiveMove', 'advantage', 'crushing', 'middlegame', 'master', 'masterVsMaster'].includes(t)) continue
+      const b = byTheme[t] ?? { played: 0, solved: 0 }
+      byTheme[t] = { played: b.played + 1, solved: b.solved + (win ? 1 : 0) }
+    }
+    const stats = { ...s.stats, byTheme, puzzleHistory: [...s.stats.puzzleHistory, { t: Date.now(), r: rating }].slice(-300) }
     return {
       ...s,
+      stats,
       puzzles: {
         ...st,
         rating,

@@ -1,12 +1,15 @@
 import { Chess, type Color, type Square } from 'chess.js'
-import { classify, type PosEval } from '../lib/analysis'
+import { classify, isRealThreat, type PosEval, type Score } from '../lib/analysis'
 import { chooseBotMove, levelByElo } from '../lib/bot'
 import { classificationMessage, openingMessages, positionMessages, type CoachMsg } from '../lib/coach'
 import { Engine } from '../lib/engine'
-import { loadOpenings, lookupOpening } from '../lib/openings'
+import { loadOpenings, lookupOpening, openingsLoaded } from '../lib/openings'
 import { newRating } from '../lib/rating'
 import { playMoveSound } from '../lib/sound'
-import { judgeMove } from '../lib/tactics'
+import { chess960Fen } from '../lib/chess960'
+import { afterMove, newClock, pause, remaining, resume } from '../lib/clock'
+import { harvestGame } from '../lib/stats'
+import { judgeMove, withTurn } from '../lib/tactics'
 import { getState, subscribe, update } from '../state/store'
 import type { AppState, GameSession, Mode, Result } from '../state/types'
 
@@ -18,7 +21,7 @@ const ANALYSIS_DEPTH = 12
 
 let bot: Engine | null = null
 let analyst: Engine | null = null
-const engines = () => {
+export const engines = () => {
   bot ??= new Engine()
   analyst ??= new Engine()
   return { bot, analyst }
@@ -50,7 +53,16 @@ function addCoach(list: CoachMsg[], msgs: CoachMsg[]): CoachMsg[] {
 
 // ---------- Ações ----------
 
-export function newGame(opts: { mode: Mode; botElo: number; playerColor: Color | 'random' }) {
+export interface GameOptions {
+  mode: Mode
+  botElo: number
+  playerColor: Color | 'random'
+  variant?: 'standard' | '960'
+  blind?: boolean
+  time?: { minutes: number; increment: number } | null
+}
+
+export function newGame(opts: GameOptions) {
   const s = getState()
   if (s.current?.status === 'playing' && s.current.mode === 'desafio' && s.current.moves.length >= 2) resign('Abandonou a partida')
   bot?.cancelAll()
@@ -63,7 +75,10 @@ export function newGame(opts: { mode: Mode; botElo: number; playerColor: Color |
     mode: opts.mode,
     botElo: opts.botElo,
     playerColor,
-    startFen: new Chess().fen(),
+    startFen: opts.variant === '960' ? chess960Fen() : new Chess().fen(),
+    variant: opts.variant ?? 'standard',
+    blind: opts.blind ?? false,
+    clock: opts.time ? newClock(opts.time.minutes, opts.time.increment) : null,
     moves: [],
     evals: {},
     reviews: {},
@@ -105,11 +120,11 @@ function applyMove(g: GameSession, chess: Chess, uci: string): boolean {
   const msgs: CoachMsg[] = []
   const op = lookupOpening(chess.fen())
   if (op && ply <= 30) msgs.push(...openingMessages(op, ply))
-  msgs.push(...positionMessages(chess, g.playerColor, ply, { tactics: g.mode === 'treino' }))
+  msgs.push(...positionMessages(chess, g.playerColor, ply, { tactics: g.mode === 'treino' && !g.blind, standard: g.variant !== '960' }))
 
   if (getState().settings.sound) playMoveSound(chess.isGameOver() ? 'end' : chess.inCheck() ? 'check' : move.captured ? 'capture' : 'move')
 
-  setCurrent((cur) => ({ ...cur, moves: [...cur.moves, move.lan], coach: addCoach(cur.coach, msgs) }))
+  setCurrent((cur) => ({ ...cur, moves: [...cur.moves, move.lan], coach: addCoach(cur.coach, msgs), clock: cur.clock ? afterMove(cur.clock, move.color) : cur.clock }))
 
   if (chess.isGameOver()) {
     let result: Result = '1/2-1/2'
@@ -150,9 +165,11 @@ function endGame(result: Result, reason: string) {
         losses: profile.losses + (score === 0 ? 1 : 0),
       }
     }
-    const ended: GameSession = { ...g, status: 'ended', result, endReason: reason, ratingBefore: s.profile.rating, ratingAfter }
+    const clock = g.clock ? pause(g.clock, replay(g).turn()) : g.clock
+    const ended: GameSession = { ...g, clock, status: 'ended', result, endReason: reason, ratingBefore: s.profile.rating, ratingAfter }
     const record = { id: g.id, date: Date.now(), mode: g.mode, botElo: g.botElo, playerColor: g.playerColor, result, endReason: reason, ratingAfter, moves: g.moves, startFen: g.startFen }
-    return { ...s, profile, current: ended, history: [record, ...s.history].slice(0, 50) }
+    const stats = ratingAfter !== undefined ? { ...s.stats, ratingHistory: [...s.stats.ratingHistory, { t: Date.now(), r: ratingAfter }].slice(-300) } : s.stats
+    return { ...s, profile, stats, current: ended, history: [record, ...s.history].slice(0, 50) }
   })
 }
 
@@ -186,6 +203,104 @@ function tick() {
   if (!g) return
   runBot(g)
   runAnalysis(g)
+  runThreat(g)
+  harvest(g)
+}
+
+let threatBusy: string | null = null
+
+/** Mapa dinâmico: na vez do jogador (Treino), o que o adversário faria se o jogador passasse a vez? */
+function runThreat(g: GameSession) {
+  const n = g.moves.length
+  const ev = g.evals[n]
+  if (g.status !== 'playing' || g.mode !== 'treino' || g.blind || !getState().settings.threats || !ev || ev.threat !== undefined) return
+  const chess = replay(g)
+  if (chess.turn() !== g.playerColor || chess.isGameOver()) return
+  const tag = `${g.id}:${n}:${g.moves.join()}`
+  if (threatBusy === tag) return
+  threatBusy = tag
+  const opp = g.playerColor === 'w' ? 'b' : 'w'
+  const passed = chess.inCheck() ? null : withTurn(chess.fen(), opp)
+  const store = (threat: PosEval['threat'], msgs: CoachMsg[] = []) => {
+    if (threatBusy === tag) threatBusy = null
+    const cur = getState().current
+    if (!cur || cur.id !== g.id || cur.moves.join() !== g.moves.join() || !cur.evals[n]) return
+    setCurrent((c) => ({ ...c, evals: { ...c.evals, [n]: { ...c.evals[n], threat } }, coach: addCoach(c.coach, msgs) }))
+  }
+  if (!passed) return store(null)
+  void engines()
+    .analyst.analyze({ fen: passed.fen(), depth: 10, options: { UCI_LimitStrength: false } })
+    .then((res) => {
+      const line = res?.lines[0]
+      if (!line) return store(null)
+      const real = isRealThreat(ev.best, line.score, opp)
+      const msgs: CoachMsg[] = []
+      if (real) {
+        // Lances do adversário na linha (posições pares a partir da vez passada).
+        const c = new Chess(passed.fen())
+        const sans: string[] = []
+        for (let k = 0; k < Math.min(3, line.pv.length); k++) {
+          try {
+            const m = c.move(uciToMove(line.pv[k]))
+            if (k % 2 === 0) sans.push(m.san)
+          } catch {
+            break
+          }
+        }
+        msgs.push({
+          key: `threat:${n}`,
+          ply: n,
+          tone: 'bad',
+          icon: '🔮',
+          title: `Ameaça: a máquina planeja ${sans.join(' e depois ')}`,
+          text: 'Setas vermelhas tracejadas mostram o plano. Antes do seu lance, veja se ele impede essa ideia.',
+        })
+      }
+      store({ pv: line.pv.slice(0, 4), score: line.score, real }, msgs)
+    })
+}
+
+/** Quando a partida termina e todos os lances foram analisados, alimenta a aba Evolução. */
+function harvest(g: GameSession) {
+  if (g.status !== 'ended' || g.moves.length < 2 || !openingsLoaded()) return
+  if (Object.keys(g.reviews).length < g.moves.length) return
+  if (getState().stats.harvested.includes(g.id)) return
+  const h = harvestGame(g, (fen) => lookupOpening(fen)?.family ?? null)
+  update((s) => {
+    const st = s.stats
+    const moveClasses = { ...st.moveClasses }
+    for (const [k, v] of Object.entries(h.classes)) moveClasses[k as keyof typeof moveClasses] = (moveClasses[k as keyof typeof moveClasses] ?? 0) + v
+    const openings = { ...st.openings }
+    if (h.family) {
+      const o = openings[h.family] ?? { games: 0, wins: 0, draws: 0, losses: 0, accSum: 0, accN: 0 }
+      const score = g.result === '1/2-1/2' ? 0.5 : (g.result === '1-0') === (g.playerColor === 'w') ? 1 : 0
+      openings[h.family] = {
+        games: o.games + 1,
+        wins: o.wins + (score === 1 ? 1 : 0),
+        draws: o.draws + (score === 0.5 ? 1 : 0),
+        losses: o.losses + (score === 0 ? 1 : 0),
+        accSum: o.accSum + (h.accuracy ?? 0),
+        accN: o.accN + (h.accuracy === null ? 0 : 1),
+      }
+    }
+    const known = new Set(s.mistakes.map((m) => m.id))
+    const mistakes = [...s.mistakes, ...h.mistakes.filter((m) => !known.has(m.id))].slice(-200)
+    return { ...s, mistakes, stats: { ...st, moveClasses, openings, harvested: [...st.harvested, g.id].slice(-200) } }
+  })
+}
+
+/** Avalia (pelas brancas) a posição depois de um lance — usado para aceitar alternativas na revisão de erros. */
+export async function scoreAfterMove(fen: string, uci: string): Promise<Score | null> {
+  const chess = new Chess(fen)
+  try {
+    chess.move(uciToMove(uci))
+  } catch {
+    return null
+  }
+  const terminal = terminalEval(chess)
+  if (terminal) return terminal.best
+  const res = await engines().analyst.analyze({ fen: chess.fen(), depth: ANALYSIS_DEPTH, options: { UCI_LimitStrength: false } })
+  return res?.lines[0]?.score ?? null
 }
 
 function runBot(g: GameSession) {
@@ -198,7 +313,8 @@ function runBot(g: GameSession) {
   const ply = g.moves.length
   const prefix = g.moves.join()
   const started = Date.now()
-  void chooseBotMove(engines().bot, chess.fen(), levelByElo(g.botElo)).then((uci) => {
+  const timeLeft = g.clock ? remaining(g.clock, chess.turn(), chess.turn()) : undefined
+  void chooseBotMove(engines().bot, chess.fen(), levelByElo(g.botElo), Math.random, timeLeft).then((uci) => {
     const wait = Math.max(0, 600 - (Date.now() - started))
     setTimeout(() => {
       if (botBusy === tag) botBusy = null
@@ -274,11 +390,38 @@ function storeEval(g: GameSession, i: number, ev: PosEval) {
   setCurrent((cur) => ({ ...cur, ...extra, evals: { ...cur.evals, [i]: ev } }))
 }
 
+/** Queda de bandeira: quem está na vez com o relógio zerado perde (empata se o outro só tem o rei). */
+function checkFlag() {
+  const g = getState().current
+  if (!g || g.status !== 'playing' || !g.clock || g.clock.runningSince === null) return
+  const chess = replay(g)
+  const turn = chess.turn()
+  if (remaining(g.clock, turn, turn) > 0) return
+  const other: Color = turn === 'w' ? 'b' : 'w'
+  const loneKing = chess.board().flat().filter((p) => p && p.color === other).length === 1
+  setCurrent((c) => ({ ...c, clock: c.clock ? { ...c.clock, [turn]: 0, runningSince: null } : c.clock }))
+  endGame(loneKing ? '1/2-1/2' : turn === 'w' ? '0-1' : '1-0', loneKing ? 'Tempo esgotado (sem material para mate)' : 'Tempo esgotado')
+}
+
+/** O relógio pausa quando o app sai da tela (troca de aba, de aparelho ou fecha) e volta ao retornar. */
+function setClockRunning(running: boolean) {
+  const g = getState().current
+  if (!g || g.status !== 'playing' || !g.clock) return
+  const turn = replay(g).turn()
+  const next = running ? resume(g.clock) : pause(g.clock, turn)
+  if (next !== g.clock) setCurrent((c) => ({ ...c, clock: next }))
+}
+
 let started = false
 export function startController() {
   if (started) return
   started = true
-  void loadOpenings()
+  // Partida retomada (outro dia ou outro aparelho): o tempo fora do app não conta.
+  const g = getState().current
+  if (g?.status === 'playing' && g.clock?.runningSince) setCurrent((c) => ({ ...c, clock: c.clock ? { ...c.clock, runningSince: Date.now() } : c.clock }))
+  setInterval(checkFlag, 250)
+  document.addEventListener('visibilitychange', () => setClockRunning(document.visibilityState === 'visible'))
+  void loadOpenings().then(tick)
   subscribe(() => queueMicrotask(tick))
   tick()
 }

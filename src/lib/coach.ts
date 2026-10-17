@@ -140,7 +140,7 @@ export function isEndgame(chess: Chess): boolean {
 }
 
 /** Comentários sobre a posição do ponto de vista do jogador, depois de cada lance. */
-export function positionMessages(chess: Chess, player: Color, ply: number, opts: { tactics: boolean }): CoachMsg[] {
+export function positionMessages(chess: Chess, player: Color, ply: number, opts: { tactics: boolean; standard?: boolean }): CoachMsg[] {
   const out: CoachMsg[] = []
   const fen = chess.fen()
   const opp: Color = player === 'w' ? 'b' : 'w'
@@ -148,8 +148,9 @@ export function positionMessages(chess: Chess, player: Color, ply: number, opts:
   const history = chess.history({ verbose: true })
   const myMoves = history.filter((m) => m.color === player)
 
-  // Princípios de abertura.
-  if (fullMove <= 14) {
+  // Princípios de abertura (só na posição inicial clássica: no 960 as casas de origem e o roque são outros).
+  const standard = opts.standard ?? true
+  if (standard && fullMove <= 14) {
     const home: [Square, PieceSymbol][] = player === 'w' ? [['b1', 'n'], ['g1', 'n'], ['c1', 'b'], ['f1', 'b']] : [['b8', 'n'], ['g8', 'n'], ['c8', 'b'], ['f8', 'b']]
     const undeveloped = home.filter(([sq, t]) => {
       const p = chess.get(sq)
@@ -166,7 +167,7 @@ export function positionMessages(chess: Chess, player: Color, ply: number, opts:
     const sq = chess.board().flat().find((p) => p?.type === 'k' && p.color === c)?.square
     return sq !== undefined && 'de'.includes(sq[0])
   }
-  if (fullMove >= 10 && !isEndgame(chess)) {
+  if (standard && fullMove >= 10 && !isEndgame(chess)) {
     if (!castled(player) && kingCentral(player)) out.push({ key: 'castle', ply, tone: 'warn', icon: '🏰', title: 'Rei no centro', text: 'Seu rei ainda está no centro. Considere fazer o roque para protegê-lo.' })
     if (!castled(opp) && kingCentral(opp)) out.push({ key: 'opp-king', ply, tone: 'info', icon: '🎯', title: 'Rei adversário exposto', text: 'O rei da máquina continua no centro: abrir colunas centrais pode render um ataque.' })
   }

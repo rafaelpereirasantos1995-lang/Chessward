@@ -12,6 +12,12 @@ App pessoal de treino de xadrez para web e celular (PWA instalável, funciona of
   faz o adversário responder e o desafio continua até você resolver ou errar (estilo Lichess). Rating próprio
   (começa em 400), sequência de acertos e filtro por tema. Modos **⚔️ Ataque** (encontrar a combinação vencedora),
   **🛡️ Defesa** (o adversário ameaça algo e só um lance salva) ou **🎲 Misto** (sorteia entre os dois).
+- **Mapa dinâmico** (Treino): o motor mostra o plano da máquina para os próximos lances com setas tracejadas.
+- **Opções de partida**: relógio (5+3, 10, 15+10, 30 — pausa ao sair do app), **às cegas** (com "espiar") e **Xadrez 960** (sem roque).
+- **Treinos**: finais essenciais contra o Stockfish (11 posições conferidas pelo motor), **aberturas** de 12 famílias com
+  repetição espaçada e **adivinhe o lance** em 60 partidas de jogadores 2300+ do Lichess.
+- **Evolução**: gráfico do rating (partidas e testes), aberturas com pontuação e precisão, temas táticos mais fracos,
+  qualidade dos lances e **revisão dos seus erros** (cada erro grave vira um desafio com repetição espaçada).
 - **Resumo da partida**: precisão sua e da máquina, contagem por tipo de lance e revisão lance a lance com o melhor lance indicado.
 - **Aparência**: 8 tabuleiros e 8 conjuntos de peças.
 - **Progresso salvo sempre**: a partida em andamento continua de onde parou; com Supabase configurado,
@@ -42,7 +48,13 @@ O `vercel.json` já define build e rotas. Para sincronização, adicione as vari
 | `src/state` | Estado persistente e sincronização (Supabase) |
 | `src/components` | Tabuleiro, painéis e diálogos |
 | `src/game/puzzles.ts` | Fluxo dos testes (lance certo/errado, resposta do adversário, rating) |
+| `src/game/trainers.ts` | Finais, aberturas e "adivinhe o lance" |
 | `scripts` | Cópia do motor, base de aberturas e base de desafios |
+
+## Dados dos treinos
+
+`scripts/build-trainers.mjs` gera `src/data/opening-lines.json` (linhas do `lichess-org/chess-openings`, CC0) e
+`src/data/master-games.json` (partidas rápidas/clássicas com ambos 2300+, do arquivo mensal do Lichess, CC0).
 
 ## Base de desafios
 

@@ -7,6 +7,8 @@ export async function loadOpenings() {
   return db
 }
 
+export const openingsLoaded = () => db !== null
+
 export const positionKey = (fen: string) => fen.split(' ').slice(0, 3).join(' ')
 
 export interface OpeningInfo {
@@ -93,6 +95,21 @@ const FAMILIES: Record<string, string> = {
   'Nimzowitsch Defense': 'Defesa Nimzowitsch',
   'Elephant Gambit': 'Gambito Elefante',
   'Rat Defense': 'Defesa do Rato',
+  "King's Knight Opening": 'Abertura do Cavalo do Rei',
+  "Queen's Knight Opening": 'Abertura do Cavalo da Dama',
+  'Van Geet Opening': 'Abertura Van Geet',
+  "Van't Kruijs Opening": "Abertura Van't Kruijs",
+  'Mieses Opening': 'Abertura Mieses',
+  'Saragossa Opening': 'Abertura Saragoça',
+  'Nimzo-Larsen Attack': 'Ataque Nimzo-Larsen',
+  'Horwitz Defense': 'Defesa Horwitz',
+  'Mexican Defense': 'Defesa Mexicana',
+  'Borg Defense': 'Defesa Borg',
+  'St. George Defense': 'Defesa São Jorge',
+  'Carr Defense': 'Defesa Carr',
+  'Barnes Defense': 'Defesa Barnes',
+  'Ware Defense': 'Defesa Ware',
+  'Pterodactyl Defense': 'Defesa Pterodáctilo',
 }
 
 const WORDS: [RegExp, string][] = [
@@ -120,14 +137,21 @@ function translateFamily(en: string): string {
   return translateVariation(en)
 }
 
-const SUFFIXES: Record<string, string> = { Variation: 'Variante', Attack: 'Ataque', Gambit: 'Gambito', Defense: 'Defesa', System: 'Sistema', Line: 'Linha' }
+/** Nome completo ("Família: Variante") traduzido. */
+export function translateName(name: string): string {
+  const [fam, variation] = name.split(/:(.*)/s)
+  const family = translateFamily(fam.trim())
+  return variation ? `${family} — ${translateVariation(variation.trim())}` : family
+}
+
+const SUFFIXES: Record<string, string> = { Variation: 'Variante', Attack: 'Ataque', Gambit: 'Gambito', Defense: 'Defesa', System: 'Sistema', Line: 'Linha', Opening: 'Abertura', Game: 'Partida' }
 
 function translateVariation(en: string): string {
   // "Declined Variation" → "Variante Declined" → "Variante Recusado": em português o tipo vem antes do nome.
   const reordered = en
     .split(', ')
     .map((part) => {
-      const m = part.match(/^(.+) (Variation|Attack|Gambit|Defense|System|Line)$/)
+      const m = part.match(/^(.+) (Variation|Attack|Gambit|Defense|System|Line|Opening|Game)$/)
       return m ? `${SUFFIXES[m[2]]} ${m[1]}` : part
     })
     .join(', ')
