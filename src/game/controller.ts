@@ -60,6 +60,9 @@ export interface GameOptions {
   variant?: 'standard' | '960'
   blind?: boolean
   time?: { minutes: number; increment: number } | null
+  /** Começar de uma posição (ex.: o fim de uma linha da seção Estudos). */
+  startFen?: string
+  lesson?: string
 }
 
 export function newGame(opts: GameOptions) {
@@ -75,7 +78,7 @@ export function newGame(opts: GameOptions) {
     mode: opts.mode,
     botElo: opts.botElo,
     playerColor,
-    startFen: opts.variant === '960' ? chess960Fen() : new Chess().fen(),
+    startFen: opts.startFen ?? (opts.variant === '960' ? chess960Fen() : new Chess().fen()),
     variant: opts.variant ?? 'standard',
     blind: opts.blind ?? false,
     clock: opts.time ? newClock(opts.time.minutes, opts.time.increment) : null,
@@ -88,7 +91,7 @@ export function newGame(opts: GameOptions) {
         ply: 0,
         tone: 'info',
         icon: opts.mode === 'treino' ? '🎓' : '🏆',
-        title: opts.mode === 'treino' ? 'Modo Treino' : 'Modo Desafio — vale rating',
+        title: opts.lesson ? `Praticando: ${opts.lesson}` : opts.mode === 'treino' ? 'Modo Treino' : 'Modo Desafio — vale rating',
         text:
           opts.mode === 'treino'
             ? 'Mapa de vulnerabilidades, dicas e desfazer liberados. Segure uma peça para ver onde cada lance é seguro (verde) ou perigoso (vermelho).'

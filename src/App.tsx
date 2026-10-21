@@ -3,6 +3,7 @@ import { AccountDialog, AppearanceDialog } from './components/Dialogs'
 import { btn, GameScreen } from './components/GameScreen'
 import { EvolutionScreen } from './components/EvolutionScreen'
 import { PuzzleScreen } from './components/PuzzleScreen'
+import { StudyScreen } from './components/StudyScreen'
 import { TrainingScreen } from './components/TrainingScreen'
 import type { Settings } from './state/types'
 import { update, useAppState } from './state/store'
@@ -20,12 +21,14 @@ export default function App() {
 
   const setTab = (t: Settings['tab']) => update((s) => ({ ...s, settings: { ...s.settings, tab: t } }))
   const syncDot = !cloudAvailable ? null : sync.user ? (sync.status === 'error' ? 'bg-red-500' : sync.status === 'syncing' ? 'bg-amber-400' : sync.status === 'offline' ? 'bg-stone-400' : 'bg-green-500') : 'bg-stone-500'
-  const tabBtn = (active: boolean) => `flex-1 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-semibold transition sm:flex-none sm:px-4 sm:text-sm ${active ? 'bg-amber-500 text-stone-900' : 'text-stone-300 hover:bg-stone-700'}`
-  const TABS: [Settings['tab'], string][] = [
-    ['jogar', '♟ Jogar'],
-    ['testes', '🧩 Testes'],
-    ['treinos', '🎯 Treinos'],
-    ['evolucao', '📈 Evolução'],
+  // No celular: ícone em cima e nome embaixo, para as 5 abas caberem.
+  const tabBtn = (active: boolean) => `flex flex-1 flex-col items-center gap-0.5 whitespace-nowrap rounded-lg px-1 py-1.5 text-[11px] font-semibold transition sm:flex-none sm:flex-row sm:gap-1.5 sm:px-4 sm:py-2 sm:text-sm ${active ? 'bg-amber-500 text-stone-900' : 'text-stone-300 hover:bg-stone-700'}`
+  const TABS: [Settings['tab'], string, string][] = [
+    ['jogar', '♟', 'Jogar'],
+    ['testes', '🧩', 'Testes'],
+    ['estudos', '📚', 'Estudos'],
+    ['treinos', '🎯', 'Treinos'],
+    ['evolucao', '📈', 'Evolução'],
   ]
 
   return (
@@ -59,8 +62,9 @@ export default function App() {
       </header>
 
       <nav className="mb-3 flex gap-1 rounded-xl bg-stone-800 p-1 sm:self-start">
-        {TABS.map(([id, label]) => (
+        {TABS.map(([id, icon, label]) => (
           <button key={id} className={tabBtn(tab === id)} onClick={() => setTab(id)}>
+            <span className="text-base leading-none sm:text-sm">{icon}</span>
             {label}
           </button>
         ))}
@@ -68,6 +72,7 @@ export default function App() {
 
       {tab === 'jogar' && <GameScreen newRequest={newRequest} />}
       {tab === 'testes' && <PuzzleScreen />}
+      {tab === 'estudos' && <StudyScreen />}
       {tab === 'treinos' && <TrainingScreen />}
       {tab === 'evolucao' && <EvolutionScreen />}
 
