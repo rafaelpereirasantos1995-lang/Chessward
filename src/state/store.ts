@@ -16,6 +16,7 @@ export function defaultState(): AppState {
     stats: { ratingHistory: [], puzzleHistory: [], byTheme: {}, moveClasses: {}, openings: {}, harvested: [] },
     mistakes: [],
     training: { endgame: null, endgamesDone: {}, openingCards: {}, opening: null, guess: null, guessBest: null },
+    studies: {},
   }
 }
 

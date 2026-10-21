@@ -12,6 +12,9 @@ App pessoal de treino de xadrez para web e celular (PWA instalável, funciona of
   faz o adversário responder e o desafio continua até você resolver ou errar (estilo Lichess). Rating próprio
   (começa em 400), sequência de acertos e filtro por tema. Modos **⚔️ Ataque** (encontrar a combinação vencedora),
   **🛡️ Defesa** (o adversário ameaça algo e só um lance salva) ou **🎲 Misto** (sorteia entre os dois).
+- **Estudos**: 17 lições do nível Iniciante ao Mestre (aberturas, gambitos, armadilhas e estratégias). Cada lição ensina
+  **como desenvolver** lance a lance, **por quê**, e **como se defender**; dá para assistir ou jogar no modo quiz e depois
+  **praticar** contra a máquina a partir da posição estudada. Linhas validadas com o chess.js e conferidas com o Stockfish.
 - **Mapa dinâmico** (Treino): o motor mostra o plano da máquina para os próximos lances com setas tracejadas.
 - **Opções de partida**: relógio (5+3, 10, 15+10, 30 — pausa ao sair do app), **às cegas** (com "espiar") e **Xadrez 960** (sem roque).
 - **Treinos**: finais essenciais contra o Stockfish (11 posições conferidas pelo motor), **aberturas** de 12 famílias com

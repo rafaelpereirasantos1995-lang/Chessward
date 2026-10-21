@@ -94,7 +94,7 @@ export interface Settings {
   coach: boolean
   /** Ameaças futuras calculadas pelo motor (mapa dinâmico). */
   threats: boolean
-  tab: 'jogar' | 'testes' | 'treinos' | 'evolucao'
+  tab: 'jogar' | 'testes' | 'estudos' | 'treinos' | 'evolucao'
 }
 
 export interface Profile {
@@ -150,4 +150,6 @@ export interface AppState {
   /** Erros graves das suas partidas, revisados com repetição espaçada. */
   mistakes: MistakeCard[]
   training: TrainingState
+  /** Progresso na seção Estudos: linhas concluídas no modo quiz. */
+  studies: Record<string, { develop?: boolean; defend?: boolean }>
 }
